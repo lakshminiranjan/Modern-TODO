@@ -66,6 +66,41 @@ export interface Database {
           updated_at?: string;
         };
       };
+      events: {
+        Row: {
+          id: string;
+          user_id: string | null;
+          title: string;
+          description: string | null;
+          start_time: string;
+          end_time: string | null;
+          location: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string | null;
+          title: string;
+          description?: string | null;
+          start_time: string;
+          end_time?: string | null;
+          location?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string | null;
+          title?: string;
+          description?: string | null;
+          start_time?: string;
+          end_time?: string | null;
+          location?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
     };
   };
 }

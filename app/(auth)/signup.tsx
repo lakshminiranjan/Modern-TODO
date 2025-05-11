@@ -3,8 +3,8 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image } from 'reac
 import { Link, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Mail, Lock, User, ArrowRight } from 'lucide-react-native';
-import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
 
 const COLORS = {
   primary: '#3E64FF',
@@ -56,40 +56,11 @@ export default function SignupScreen() {
 
       if (signUpError) throw signUpError;
 
-      // 2. Create profile record
-      if (authData.user) {
-        const profileData = {
-          id: authData.user.id,
-          full_name: name,
-          avatar_url: null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
+      // Profile will be handled by AuthContext when the user logs in
+      // No need to manually create profile here
 
-        // Try to create profile
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert(profileData);
-
-        if (profileError) {
-          console.error('Profile creation error:', profileError);
-          // Try update as fallback
-          const { error: updateError } = await supabase
-            .from('profiles')
-            .update(profileData)
-            .eq('id', authData.user.id);
-
-          if (updateError) {
-            console.error('Profile update error:', updateError);
-            // Continue even if profile creation fails
-          }
-        }
-
-        // 3. Navigate to login page after successful signup
-        router.replace('/login');
-      } else {
-        throw new Error('Failed to create user account');
-      }
+      // 3. Navigate to login page after successful signup
+      router.replace('/login');
     } catch (err) {
       console.error('Signup error:', err);
       setError(err instanceof Error ? err.message : String(err));

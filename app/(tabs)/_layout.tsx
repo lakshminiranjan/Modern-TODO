@@ -3,18 +3,12 @@ import { StyleSheet } from 'react-native';
 import { Calendar, ChartBar as BarChart3, Chrome as Home, ListTodo, Settings } from 'lucide-react-native';
 import { BlurView } from 'expo-blur';
 import { Platform } from 'react-native';
-import { useAuth } from '@/contexts/AuthContext';
-
-// Define theme colors
-const COLORS = {
-  primary: '#3E64FF',
-  background: '#F7F9FC',
-  tabBarBackground: 'rgba(255, 255, 255, 0.8)',
-  tabBarBorder: 'rgba(0, 0, 0, 0.05)',
-};
+import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 
 export default function TabLayout() {
   const { session, loading } = useAuth();
+  const { colors, isDarkMode } = useTheme();
 
   // Show loading screen while checking auth state
   if (loading) {
@@ -29,9 +23,15 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: '#94A3B8',
-        tabBarStyle: styles.tabBar,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textSecondary,
+        tabBarStyle: [
+          styles.tabBar, 
+          { 
+            backgroundColor: isDarkMode ? 'rgba(45, 55, 72, 0.8)' : 'rgba(255, 255, 255, 0.8)',
+            borderTopColor: colors.border
+          }
+        ],
         tabBarLabelStyle: styles.tabBarLabel,
         tabBarItemStyle: styles.tabBarItem,
         headerShown: false,
@@ -39,7 +39,7 @@ export default function TabLayout() {
           Platform.OS === 'ios' ? (
             <BlurView 
               intensity={80} 
-              tint="light" 
+              tint={isDarkMode ? "dark" : "light"} 
               style={styles.tabBarBlurView}
             />
           ) : null,
@@ -101,9 +101,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 60,
-    backgroundColor: COLORS.tabBarBackground,
     borderTopWidth: 1,
-    borderTopColor: COLORS.tabBarBorder,
     paddingBottom: 8,
     paddingTop: 8,
   },

@@ -2,25 +2,15 @@ import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CirclePlus as PlusCircle, CircleCheck as CheckCircle, Circle, Search, ChevronDown, Trash2 } from 'lucide-react-native';
-import { getTasks, updateTask, deleteTask, subscribeToTasks, Task } from '@/lib/tasks';
-import AddTaskModal from '@/components/AddTaskModal';
+import { format, parseISO } from 'date-fns';
+import { getTasks, updateTask, deleteTask, subscribeToTasks, Task } from '../../lib/tasks';
+import AddTaskModal from '../../components/AddTaskModal';
+import { useTheme } from '../../contexts/ThemeContext';
+import COLORS from '@/constants/colors';
 
-const COLORS = {
-  primary: '#3E64FF',
-  secondary: '#38B2AC',
-  accent: '#9F7AEA',
-  background: '#F7F9FC',
-  card: '#FFFFFF',
-  text: '#1A202C',
-  textSecondary: '#4A5568',
-  border: '#E2E8F0',
-  success: '#48BB78',
-  warning: '#F6AD55',
-  error: '#F56565',
-};
-
-const CATEGORIES = [
-  { id: 'all', name: 'All', color: COLORS.primary },
+// Define categories with dynamic colors
+const getCategoriesWithColors = (colors: any) => [
+  { id: 'all', name: 'All', color: colors.primary },
   { id: 'work', name: 'Work', color: '#4C51BF' },
   { id: 'personal', name: 'Personal', color: '#9F7AEA' },
   { id: 'shopping', name: 'Shopping', color: '#ED8936' },
@@ -35,20 +25,39 @@ export default function TasksScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
+  const { colors: COLORS, isDarkMode } = useTheme();
 
   useEffect(() => {
+    // Load tasks immediately when component mounts
     loadTasks();
+    
+    // Set up real-time subscription
     const subscription = subscribeToTasks(setTasks);
-    return () => subscription.unsubscribe();
+    
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const loadTasks = async () => {
+  const loadTasks = async (forceRefresh = false) => {
     try {
-      setLoading(true);
-      const data = await getTasks();
+      // Only show loading indicator on initial load or forced refresh
+      if (tasks.length === 0 || forceRefresh) {
+        setLoading(true);
+      }
+      
+      // Clear any previous errors
+      setError(null);
+      
+      console.log('Loading tasks from server...');
+      const data = await getTasks(forceRefresh);
+      console.log(`Loaded ${data.length} tasks from server`);
+      
       setTasks(data);
-    } catch (err) {
-      setError(err.message);
+    } catch (err: unknown) {
+      console.error('Error loading tasks:', err);
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -57,26 +66,69 @@ export default function TasksScreen() {
   const toggleTaskCompletion = async (taskId: string, currentStatus: string) => {
     try {
       const newStatus = currentStatus === 'completed' ? 'pending' : 'completed';
-      await updateTask(taskId, { status: newStatus });
-    } catch (err) {
-      setError('Failed to update task status');
+      console.log(`Toggling task ${taskId} from ${currentStatus} to ${newStatus}`);
+      
+      // Update local state immediately for better UX
+      setTasks(prevTasks => 
+        prevTasks.map(task => 
+          task.id === taskId 
+            ? { ...task, status: newStatus, updated_at: new Date().toISOString() } 
+            : task
+        )
+      );
+      
+      // Send update to the server
+      await updateTask(taskId, { 
+        status: newStatus,
+        updated_at: new Date().toISOString()
+      });
+      
+      // Show success message (optional)
+      console.log(`Successfully updated task ${taskId} status to ${newStatus}`);
+      
+      // Refresh tasks from server to ensure consistency
+      loadTasks();
+    } catch (err: unknown) {
+      console.error('Error toggling task completion:', err);
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+      setError(`Failed to update task status: ${errorMessage}`);
+      
+      // Revert the optimistic update if there was an error
+      loadTasks();
     }
   };
 
   const handleDeleteTask = async (taskId: string) => {
     try {
+      console.log(`Attempting to delete task ${taskId}`);
+      
+      // Update local state immediately for better UX
+      setTasks(prevTasks => prevTasks.filter(task => task.id !== taskId));
+      
+      // Send delete request to the server
       await deleteTask(taskId);
-    } catch (err) {
-      setError('Failed to delete task');
+      console.log(`Task ${taskId} deleted successfully`);
+      
+      // Refresh tasks from server to ensure consistency
+      loadTasks();
+    } catch (err: unknown) {
+      console.error('Error deleting task:', err);
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+      setError(`Failed to delete task: ${errorMessage}`);
+      
+      // Revert the optimistic update if there was an error
+      loadTasks();
     }
   };
 
-  const getCategoryColor = (categoryId) => {
-    const category = CATEGORIES.find(cat => cat.id === categoryId);
+  const getCategoryColor = () => {
+    // Since category field doesn't exist in the database, we'll always use 'work' category color
+    const categories = getCategoriesWithColors(COLORS);
+    const category = categories.find(cat => cat.id === 'work');
     return category ? category.color : COLORS.primary;
   };
 
-  const getPriorityIndicator = (priority) => {
+  const getPriorityIndicator = (priority: string | undefined | null) => {
     switch(priority) {
       case 'high':
         return { color: COLORS.error, label: 'High' };
@@ -90,29 +142,37 @@ export default function TasksScreen() {
   };
 
   const filteredTasks = tasks.filter(task => {
-    const categoryMatch = selectedCategory === 'all' || task.category === selectedCategory;
+    // Since category field doesn't exist in the database, we'll treat all tasks as 'work' category
+    // or show all tasks when 'all' is selected
+    const categoryMatch = selectedCategory === 'all' || selectedCategory === 'work';
     const searchMatch = task.title.toLowerCase().includes(searchQuery.toLowerCase());
     const completionMatch = showCompletedTasks || task.status !== 'completed';
     return categoryMatch && searchMatch && completionMatch;
   });
 
+  // Get categories with current theme colors
+  const CATEGORIES = getCategoriesWithColors(COLORS);
+  
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: COLORS.background }]}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Tasks</Text>
+        <Text style={[styles.headerTitle, { color: COLORS.text }]}>Tasks</Text>
         <TouchableOpacity 
-          style={styles.addTaskButton}
+          style={[styles.addTaskButton, { backgroundColor: `${COLORS.primary}10` }]}
           onPress={() => setIsAddModalVisible(true)}
         >
           <PlusCircle color={COLORS.primary} size={24} />
-          <Text style={styles.addTaskText}>New Task</Text>
+          <Text style={[styles.addTaskText, { color: COLORS.primary }]}>New Task</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={styles.searchContainer}>
+      <View style={[styles.searchContainer, { 
+        backgroundColor: COLORS.card,
+        borderColor: COLORS.border
+      }]}>
         <Search size={20} color={COLORS.textSecondary} style={styles.searchIcon} />
         <TextInput
-          style={styles.searchInput}
+          style={[styles.searchInput, { color: COLORS.text }]}
           placeholder="Search tasks..."
           placeholderTextColor={COLORS.textSecondary}
           value={searchQuery}
@@ -131,7 +191,11 @@ export default function TasksScreen() {
               key={category.id}
               style={[
                 styles.categoryButton,
-                selectedCategory === category.id && styles.categoryButtonActive,
+                { backgroundColor: isDarkMode ? COLORS.card : '#FFFFFF' },
+                selectedCategory === category.id && [
+                  styles.categoryButtonActive,
+                  { backgroundColor: category.color }
+                ],
                 { borderColor: category.color }
               ]}
               onPress={() => setSelectedCategory(category.id)}
@@ -152,10 +216,13 @@ export default function TasksScreen() {
 
       <View style={styles.completedFilterContainer}>
         <TouchableOpacity 
-          style={styles.completedFilterButton}
+          style={[styles.completedFilterButton, { 
+            backgroundColor: COLORS.card,
+            borderColor: COLORS.border
+          }]}
           onPress={() => setShowCompletedTasks(!showCompletedTasks)}
         >
-          <Text style={styles.completedFilterText}>
+          <Text style={[styles.completedFilterText, { color: COLORS.text }]}>
             {showCompletedTasks ? 'Hide Completed Tasks' : 'Show Completed Tasks'}
           </Text>
           <ChevronDown size={16} color={COLORS.textSecondary} />
@@ -168,15 +235,15 @@ export default function TasksScreen() {
       >
         {loading ? (
           <View style={styles.noTasksContainer}>
-            <Text style={styles.noTasksText}>Loading tasks...</Text>
+            <Text style={[styles.noTasksText, { color: COLORS.textSecondary }]}>Loading tasks...</Text>
           </View>
         ) : error ? (
           <View style={styles.noTasksContainer}>
-            <Text style={styles.noTasksText}>Error: {error}</Text>
+            <Text style={[styles.noTasksText, { color: COLORS.error }]}>Error: {error}</Text>
           </View>
         ) : filteredTasks.length > 0 ? (
           filteredTasks.map((task) => (
-            <View key={task.id} style={styles.taskItem}>
+            <View key={task.id} style={[styles.taskItem, { backgroundColor: COLORS.card }]}>
               <TouchableOpacity 
                 style={styles.taskCheckbox}
                 onPress={() => toggleTaskCompletion(task.id, task.status)}
@@ -199,13 +266,13 @@ export default function TasksScreen() {
                 <View style={styles.taskMeta}>
                   <View style={[
                     styles.taskCategoryBadge, 
-                    { backgroundColor: `${getCategoryColor(task.category)}20` }
+                    { backgroundColor: `${getCategoryColor()}20` }
                   ]}>
                     <Text style={[
                       styles.taskCategoryText,
-                      { color: getCategoryColor(task.category) }
+                      { color: getCategoryColor() }
                     ]}>
-                      {CATEGORIES.find(cat => cat.id === task.category)?.name || 'Other'}
+                      Work
                     </Text>
                   </View>
                   
@@ -221,7 +288,9 @@ export default function TasksScreen() {
                     </Text>
                   </View>
                   
-                  <Text style={styles.taskDueDate}>Due: {task.due_date || 'No date'}</Text>
+                  <Text style={styles.taskDueDate}>
+                    Due: {task.due_date ? format(parseISO(task.due_date), 'MMM d, yyyy') : 'No date'}
+                  </Text>
                 </View>
               </View>
               
@@ -244,6 +313,7 @@ export default function TasksScreen() {
       <AddTaskModal
         visible={isAddModalVisible}
         onClose={() => setIsAddModalVisible(false)}
+        onTaskAdded={loadTasks}
       />
     </SafeAreaView>
   );

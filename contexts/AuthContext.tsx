@@ -1,13 +1,23 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '../lib/supabase';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Extended user type that includes profile information
+type UserWithProfile = User & {
+  profile?: {
+    full_name: string;
+    avatar_url: string | null;
+  }
+};
 
 type AuthContextType = {
   session: Session | null;
-  user: User | null;
+  user: UserWithProfile | null;
   loading: boolean;
   signOut: () => Promise<void>;
+  updateUserProfile: (profileData: { full_name: string }) => Promise<boolean>;
 };
 
 const AuthContext = createContext<AuthContextType>({
@@ -15,84 +25,123 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
   signOut: async () => {},
+  updateUserProfile: async () => false,
 });
+
+// Storage key for profile data
+const PROFILE_STORAGE_KEY = 'user_profile_data';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<UserWithProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Store profile in memory and AsyncStorage instead of database
+  // This is a temporary workaround until RLS issues are fixed
   const createOrUpdateProfile = async (user: User) => {
     try {
       console.log('Creating/updating profile for user:', user.id);
       
+      // Create profile data
       const profileData = {
         id: user.id,
         full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
         avatar_url: user.user_metadata?.avatar_url || null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
       };
-
-      // First try to get the existing profile
-      const { data: existingProfile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('id', user.id)
-        .single();
-
-      if (existingProfile) {
-        // Update existing profile
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update(profileData)
-          .eq('id', user.id);
-
-        if (updateError) {
-          console.error('Profile update error:', updateError);
+      
+      // Store profile data in AsyncStorage
+      await AsyncStorage.setItem(
+        `${PROFILE_STORAGE_KEY}_${user.id}`, 
+        JSON.stringify(profileData)
+      );
+      
+      // Update user object with profile data
+      const userWithProfile = {
+        ...user,
+        profile: {
+          full_name: profileData.full_name,
+          avatar_url: profileData.avatar_url
         }
-      } else {
-        // Insert new profile
-        const { error: insertError } = await supabase
-          .from('profiles')
-          .insert(profileData);
-
-        if (insertError) {
-          console.error('Profile insert error:', insertError);
-        }
-      }
+      };
+      
+      // Update state
+      setUser(userWithProfile);
+      
+      console.log('Profile stored locally for user:', user.id);
+      return true;
     } catch (error) {
-      console.error('Profile operation error:', error);
+      console.error('Profile storage error:', error);
+      return false;
+    }
+  };
+
+  // Load profile from AsyncStorage
+  const loadProfileFromStorage = async (userId: string) => {
+    try {
+      const profileJson = await AsyncStorage.getItem(`${PROFILE_STORAGE_KEY}_${userId}`);
+      if (profileJson) {
+        return JSON.parse(profileJson);
+      }
+      return null;
+    } catch (error) {
+      console.error('Error loading profile from storage:', error);
+      return null;
+    }
+  };
+
+  // Update user with profile data
+  const updateUserWithProfile = async (currentUser: User) => {
+    // First try to load profile from storage
+    const storedProfile = await loadProfileFromStorage(currentUser.id);
+    
+    if (storedProfile) {
+      // If we have stored profile data, use it
+      const userWithProfile = {
+        ...currentUser,
+        profile: {
+          full_name: storedProfile.full_name,
+          avatar_url: storedProfile.avatar_url
+        }
+      };
+      setUser(userWithProfile);
+    } else {
+      // If no stored profile, create one
+      await createOrUpdateProfile(currentUser);
     }
   };
 
   useEffect(() => {
     // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-
-      // If we have a session, ensure profile exists
+      
+      // If we have a session, load profile data
       if (session?.user) {
-        createOrUpdateProfile(session.user);
+        await updateUserWithProfile(session.user);
         router.replace('/(tabs)');
+      } else {
+        setUser(null);
       }
+      
+      setLoading(false);
     });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Auth state changed:', event, session?.user?.id);
       setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-
+      
       if (event === 'SIGNED_IN' && session?.user) {
-        await createOrUpdateProfile(session.user);
+        await updateUserWithProfile(session.user);
         router.replace('/(tabs)');
       } else if (event === 'SIGNED_OUT') {
+        setUser(null);
         router.replace('/login');
+      } else {
+        setUser(session?.user ?? null);
       }
+      
+      setLoading(false);
     });
 
     return () => {
@@ -102,6 +151,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
+      // Clear profile data from storage when signing out
+      if (user?.id) {
+        await AsyncStorage.removeItem(`${PROFILE_STORAGE_KEY}_${user.id}`);
+      }
       await supabase.auth.signOut();
       router.replace('/login');
     } catch (error) {
@@ -109,8 +162,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateUserProfile = async (profileData: { full_name: string }): Promise<boolean> => {
+    try {
+      if (!user) return false;
+      
+      // Get existing profile data
+      const storedProfile = await loadProfileFromStorage(user.id);
+      
+      if (!storedProfile) return false;
+      
+      // Update profile with new data
+      const updatedProfile = {
+        ...storedProfile,
+        full_name: profileData.full_name
+      };
+      
+      // Save updated profile to AsyncStorage
+      await AsyncStorage.setItem(
+        `${PROFILE_STORAGE_KEY}_${user.id}`, 
+        JSON.stringify(updatedProfile)
+      );
+      
+      // Update user state with new profile data
+      const userWithUpdatedProfile: UserWithProfile = {
+        ...user,
+        profile: {
+          full_name: profileData.full_name,
+          avatar_url: user.profile?.avatar_url ?? null // Ensure avatar_url is string or null, not undefined
+        }
+      };
+      
+      setUser(userWithUpdatedProfile);
+      return true;
+    } catch (error) {
+      console.error('Error updating user profile:', error);
+      return false;
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ session, user, loading, signOut }}>
+    <AuthContext.Provider value={{ session, user, loading, signOut, updateUserProfile }}>
       {children}
     </AuthContext.Provider>
   );

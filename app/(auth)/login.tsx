@@ -3,8 +3,8 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image } from 'reac
 import { Link, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Mail, Lock, ArrowRight } from 'lucide-react-native';
-import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
 
 const COLORS = {
   primary: '#3E64FF',
@@ -60,35 +60,8 @@ export default function LoginScreen() {
       if (userError) throw userError;
       if (!freshUser) throw new Error('Failed to get user data');
 
-      // Create or update profile
-      const profileData = {
-        id: user.id,
-        full_name: freshUser.user_metadata?.full_name || email.split('@')[0] || 'User',
-        avatar_url: freshUser.user_metadata?.avatar_url || null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      // Try to create or update profile
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .upsert(profileData, {
-          onConflict: 'id',
-          ignoreDuplicates: false
-        });
-
-      if (profileError) {
-        console.error('Profile error:', profileError);
-        // Try direct insert as fallback
-        const { error: insertError } = await supabase
-          .from('profiles')
-          .insert(profileData);
-
-        if (insertError) {
-          console.error('Profile insert error:', insertError);
-          // Continue with login even if profile update fails
-        }
-      }
+      // Profile will be handled by AuthContext
+      // No need to manually create/update profile here
 
       // Navigate to tabs
       router.replace('/(tabs)');

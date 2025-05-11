@@ -4,23 +4,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChartBar as BarChart2, ChartPie as PieChart, TrendingUp, Clock, Calendar, FileText, ChevronDown } from 'lucide-react-native';
 import { getTaskStats } from '@/lib/tasks';
 import { subscribeToTasks } from '@/lib/tasks';
-
-// Define theme colors
-const COLORS = {
-  primary: '#3E64FF',
-  secondary: '#38B2AC',
-  accent: '#9F7AEA',
-  background: '#F7F9FC',
-  card: '#FFFFFF',
-  text: '#1A202C',
-  textSecondary: '#4A5568',
-  border: '#E2E8F0',
-  success: '#48BB78',
-  warning: '#F6AD55',
-  error: '#F56565',
-};
+import { useTheme } from '@/contexts/ThemeContext';
+import COLORS from '@/constants/colors';
 
 export default function AnalyticsScreen() {
+  const { colors, isDarkMode } = useTheme();
   const [stats, setStats] = useState({
     total: 0,
     completed: 0,
@@ -33,8 +21,12 @@ export default function AnalyticsScreen() {
 
   useEffect(() => {
     loadStats();
-    const subscription = subscribeToTasks(() => loadStats());
-    return () => subscription.unsubscribe();
+    const subscription = subscribeToTasks(() => {
+      loadStats();
+    });
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const loadStats = async () => {
@@ -47,56 +39,56 @@ export default function AnalyticsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Analytics</Text>
-        <TouchableOpacity style={styles.periodSelector}>
-          <Text style={styles.periodText}>Last 30 Days</Text>
-          <ChevronDown size={16} color={COLORS.textSecondary} />
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Analytics</Text>
+        <TouchableOpacity style={[styles.periodSelector, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.periodText, { color: colors.textSecondary }]}>Last 30 Days</Text>
+          <ChevronDown size={16} color={colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.summaryContainer}>
-          <View style={styles.summaryCard}>
-            <View style={[styles.summaryIconContainer, { backgroundColor: `${COLORS.primary}20` }]}>
-              <Calendar size={20} color={COLORS.primary} />
+          <View style={[styles.summaryCard, { backgroundColor: colors.card }]}>
+            <View style={[styles.summaryIconContainer, { backgroundColor: `${colors.primary}20` }]}>
+              <Calendar size={20} color={colors.primary} />
             </View>
-            <Text style={styles.summaryNumber}>{stats.total}</Text>
-            <Text style={styles.summaryText}>Total Tasks</Text>
+            <Text style={[styles.summaryNumber, { color: colors.text }]}>{stats.total}</Text>
+            <Text style={[styles.summaryText, { color: colors.textSecondary }]}>Total Tasks</Text>
           </View>
 
-          <View style={styles.summaryCard}>
-            <View style={[styles.summaryIconContainer, { backgroundColor: `${COLORS.success}20` }]}>
-              <FileText size={20} color={COLORS.success} />
+          <View style={[styles.summaryCard, { backgroundColor: colors.card }]}>
+            <View style={[styles.summaryIconContainer, { backgroundColor: `${colors.success}20` }]}>
+              <FileText size={20} color={colors.success} />
             </View>
-            <Text style={styles.summaryNumber}>{stats.completed}</Text>
-            <Text style={styles.summaryText}>Completed</Text>
+            <Text style={[styles.summaryNumber, { color: colors.text }]}>{stats.completed}</Text>
+            <Text style={[styles.summaryText, { color: colors.textSecondary }]}>Completed</Text>
           </View>
 
-          <View style={styles.summaryCard}>
-            <View style={[styles.summaryIconContainer, { backgroundColor: `${COLORS.error}20` }]}>
-              <Clock size={20} color={COLORS.error} />
+          <View style={[styles.summaryCard, { backgroundColor: colors.card }]}>
+            <View style={[styles.summaryIconContainer, { backgroundColor: `${colors.error}20` }]}>
+              <Clock size={20} color={colors.error} />
             </View>
-            <Text style={styles.summaryNumber}>{stats.pending}</Text>
-            <Text style={styles.summaryText}>Pending</Text>
+            <Text style={[styles.summaryNumber, { color: colors.text }]}>{stats.pending}</Text>
+            <Text style={[styles.summaryText, { color: colors.textSecondary }]}>Pending</Text>
           </View>
         </View>
 
         <View style={styles.scoreContainer}>
           <View style={styles.scoreHeader}>
-            <Text style={styles.scoreTitle}>Completion Rate</Text>
-            <TrendingUp size={20} color={COLORS.success} />
+            <Text style={[styles.scoreTitle, { color: colors.text }]}>Completion Rate</Text>
+            <TrendingUp size={20} color={colors.success} />
           </View>
           
-          <View style={styles.scoreCard}>
+          <View style={[styles.scoreCard, { backgroundColor: colors.card }]}>
             <View style={styles.scoreCircleContainer}>
-              <View style={styles.scoreCircle}>
-                <Text style={styles.scoreNumber}>{Math.round(stats.completionRate)}%</Text>
+              <View style={[styles.scoreCircle, { backgroundColor: `${colors.primary}20`, borderColor: colors.primary }]}>
+                <Text style={[styles.scoreNumber, { color: colors.primary }]}>{Math.round(stats.completionRate)}%</Text>
               </View>
             </View>
             <View style={styles.scoreDetails}>
-              <Text style={styles.scoreDetailText}>
+              <Text style={[styles.scoreDetailText, { color: colors.textSecondary }]}>
                 {stats.completed} out of {stats.total} tasks completed
               </Text>
             </View>
@@ -106,49 +98,49 @@ export default function AnalyticsScreen() {
         {/* Task Completion Chart */}
         <View style={styles.chartContainer}>
           <View style={styles.chartHeader}>
-            <Text style={styles.chartTitle}>Task Completion Rate</Text>
-            <BarChart2 size={20} color={COLORS.primary} />
+            <Text style={[styles.chartTitle, { color: colors.text }]}>Task Completion Rate</Text>
+            <BarChart2 size={20} color={colors.primary} />
           </View>
           
-          <View style={styles.chartCard}>
+          <View style={[styles.chartCard, { backgroundColor: colors.card }]}>
             {/* Placeholder for actual chart */}
             <View style={styles.barChartContainer}>
               <View style={styles.barChartYAxis}>
-                <Text style={styles.barChartYLabel}>100%</Text>
-                <Text style={styles.barChartYLabel}>75%</Text>
-                <Text style={styles.barChartYLabel}>50%</Text>
-                <Text style={styles.barChartYLabel}>25%</Text>
-                <Text style={styles.barChartYLabel}>0%</Text>
+                <Text style={[styles.barChartYLabel, { color: colors.textSecondary }]}>100%</Text>
+                <Text style={[styles.barChartYLabel, { color: colors.textSecondary }]}>75%</Text>
+                <Text style={[styles.barChartYLabel, { color: colors.textSecondary }]}>50%</Text>
+                <Text style={[styles.barChartYLabel, { color: colors.textSecondary }]}>25%</Text>
+                <Text style={[styles.barChartYLabel, { color: colors.textSecondary }]}>0%</Text>
               </View>
               
               <View style={styles.barChartContent}>
                 <View style={styles.barContainer}>
-                  <View style={[styles.bar, { height: 120, backgroundColor: COLORS.primary }]} />
-                  <Text style={styles.barChartXLabel}>Mon</Text>
+                  <View style={[styles.bar, { height: 120, backgroundColor: colors.primary }]} />
+                  <Text style={[styles.barChartXLabel, { color: colors.textSecondary }]}>Mon</Text>
                 </View>
                 <View style={styles.barContainer}>
-                  <View style={[styles.bar, { height: 80, backgroundColor: COLORS.primary }]} />
-                  <Text style={styles.barChartXLabel}>Tue</Text>
+                  <View style={[styles.bar, { height: 80, backgroundColor: colors.primary }]} />
+                  <Text style={[styles.barChartXLabel, { color: colors.textSecondary }]}>Tue</Text>
                 </View>
                 <View style={styles.barContainer}>
-                  <View style={[styles.bar, { height: 150, backgroundColor: COLORS.primary }]} />
-                  <Text style={styles.barChartXLabel}>Wed</Text>
+                  <View style={[styles.bar, { height: 150, backgroundColor: colors.primary }]} />
+                  <Text style={[styles.barChartXLabel, { color: colors.textSecondary }]}>Wed</Text>
                 </View>
                 <View style={styles.barContainer}>
-                  <View style={[styles.bar, { height: 100, backgroundColor: COLORS.primary }]} />
-                  <Text style={styles.barChartXLabel}>Thu</Text>
+                  <View style={[styles.bar, { height: 100, backgroundColor: colors.primary }]} />
+                  <Text style={[styles.barChartXLabel, { color: colors.textSecondary }]}>Thu</Text>
                 </View>
                 <View style={styles.barContainer}>
-                  <View style={[styles.bar, { height: 70, backgroundColor: COLORS.primary }]} />
-                  <Text style={styles.barChartXLabel}>Fri</Text>
+                  <View style={[styles.bar, { height: 70, backgroundColor: colors.primary }]} />
+                  <Text style={[styles.barChartXLabel, { color: colors.textSecondary }]}>Fri</Text>
                 </View>
                 <View style={styles.barContainer}>
-                  <View style={[styles.bar, { height: 40, backgroundColor: COLORS.primary }]} />
-                  <Text style={styles.barChartXLabel}>Sat</Text>
+                  <View style={[styles.bar, { height: 40, backgroundColor: colors.primary }]} />
+                  <Text style={[styles.barChartXLabel, { color: colors.textSecondary }]}>Sat</Text>
                 </View>
                 <View style={styles.barContainer}>
-                  <View style={[styles.bar, { height: 30, backgroundColor: COLORS.primary }]} />
-                  <Text style={styles.barChartXLabel}>Sun</Text>
+                  <View style={[styles.bar, { height: 30, backgroundColor: colors.primary }]} />
+                  <Text style={[styles.barChartXLabel, { color: colors.textSecondary }]}>Sun</Text>
                 </View>
               </View>
             </View>
@@ -158,11 +150,11 @@ export default function AnalyticsScreen() {
         {/* Task Distribution */}
         <View style={styles.chartContainer}>
           <View style={styles.chartHeader}>
-            <Text style={styles.chartTitle}>Task Distribution</Text>
-            <PieChart size={20} color={COLORS.primary} />
+            <Text style={[styles.chartTitle, { color: colors.text }]}>Task Distribution</Text>
+            <PieChart size={20} color={colors.primary} />
           </View>
           
-          <View style={styles.chartCard}>
+          <View style={[styles.chartCard, { backgroundColor: colors.card }]}>
             <View style={styles.pieChartContainer}>
               <View style={styles.pieChartPlaceholder}>
                 {/* Placeholder for actual pie chart */}
@@ -170,28 +162,28 @@ export default function AnalyticsScreen() {
                 <View style={[styles.pieSegment, styles.pieSegment2]} />
                 <View style={[styles.pieSegment, styles.pieSegment3]} />
                 <View style={[styles.pieSegment, styles.pieSegment4]} />
-                <View style={styles.pieChartInner}>
-                  <Text style={styles.pieChartTotal}>64</Text>
-                  <Text style={styles.pieChartTotalLabel}>Tasks</Text>
+                <View style={[styles.pieChartInner, { backgroundColor: colors.card }]}>
+                  <Text style={[styles.pieChartTotal, { color: colors.text }]}>64</Text>
+                  <Text style={[styles.pieChartTotalLabel, { color: colors.textSecondary }]}>Tasks</Text>
                 </View>
               </View>
               
               <View style={styles.pieChartLegend}>
                 <View style={styles.legendItem}>
-                  <View style={[styles.legendColor, { backgroundColor: COLORS.primary }]} />
-                  <Text style={styles.legendText}>Work (45%)</Text>
+                  <View style={[styles.legendColor, { backgroundColor: colors.primary }]} />
+                  <Text style={[styles.legendText, { color: colors.textSecondary }]}>Work (45%)</Text>
                 </View>
                 <View style={styles.legendItem}>
-                  <View style={[styles.legendColor, { backgroundColor: COLORS.secondary }]} />
-                  <Text style={styles.legendText}>Personal (25%)</Text>
+                  <View style={[styles.legendColor, { backgroundColor: colors.secondary }]} />
+                  <Text style={[styles.legendText, { color: colors.textSecondary }]}>Personal (25%)</Text>
                 </View>
                 <View style={styles.legendItem}>
-                  <View style={[styles.legendColor, { backgroundColor: COLORS.accent }]} />
-                  <Text style={styles.legendText}>Health (15%)</Text>
+                  <View style={[styles.legendColor, { backgroundColor: colors.accent }]} />
+                  <Text style={[styles.legendText, { color: colors.textSecondary }]}>Health (15%)</Text>
                 </View>
                 <View style={styles.legendItem}>
-                  <View style={[styles.legendColor, { backgroundColor: COLORS.warning }]} />
-                  <Text style={styles.legendText}>Shopping (15%)</Text>
+                  <View style={[styles.legendColor, { backgroundColor: colors.warning }]} />
+                  <Text style={[styles.legendText, { color: colors.textSecondary }]}>Shopping (15%)</Text>
                 </View>
               </View>
             </View>
@@ -201,24 +193,24 @@ export default function AnalyticsScreen() {
         {/* Activity Timeline */}
         <View style={[styles.chartContainer, { marginBottom: 24 }]}>
           <View style={styles.chartHeader}>
-            <Text style={styles.chartTitle}>Daily Activity</Text>
+            <Text style={[styles.chartTitle, { color: colors.text }]}>Daily Activity</Text>
           </View>
           
-          <View style={styles.chartCard}>
+          <View style={[styles.chartCard, { backgroundColor: colors.card }]}>
             <View style={styles.timelineContainer}>
               {Array.from({ length: 6 }).map((_, index) => (
                 <View key={index} style={styles.timelineItem}>
                   <View style={styles.timelineTime}>
-                    <Text style={styles.timelineTimeText}>{8 + index * 2}:00</Text>
+                    <Text style={[styles.timelineTimeText, { color: colors.textSecondary }]}>{8 + index * 2}:00</Text>
                   </View>
-                  <View style={styles.timelineLine}>
-                    <View style={styles.timelineDot} />
+                  <View style={[styles.timelineLine, { backgroundColor: colors.border }]}>
+                    <View style={[styles.timelineDot, { backgroundColor: colors.primary }]} />
                   </View>
                   <View style={styles.timelineContent}>
-                    <Text style={styles.timelineTitle}>
+                    <Text style={[styles.timelineTitle, { color: colors.text }]}>
                       {['Team Meeting', 'Project Review', 'Lunch Break', 'Client Call', 'Email Responses', 'Wrap Up'][index]}
                     </Text>
-                    <Text style={styles.timelineDescription}>
+                    <Text style={[styles.timelineDescription, { color: colors.textSecondary }]}>
                       {['Discussed project timelines', 'Reviewed designs with team', 'Break', 'Presented to client', 'Responded to 15 emails', 'Prepared for tomorrow'][index]}
                     </Text>
                   </View>

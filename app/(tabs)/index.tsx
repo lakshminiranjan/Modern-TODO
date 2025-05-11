@@ -4,20 +4,13 @@ import { StatusBar } from 'expo-status-bar';
 import { Calendar, Clock, PlusCircle, ArrowRight, Bell } from 'lucide-react-native';
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme, COLORS as ThemeColors } from '@/contexts/ThemeContext';
 
-// Define theme colors
-const COLORS = {
-  primary: '#3E64FF',
-  secondary: '#38B2AC',
-  accent: '#9F7AEA',
-  background: '#F7F9FC',
-  card: '#FFFFFF',
-  text: '#1A202C',
-  textSecondary: '#4A5568',
-  border: '#E2E8F0',
-  success: '#48BB78',
-  warning: '#F6AD55',
-  error: '#F56565',
+// Default colors for static data
+const DefaultColors = {
+  primary: '#3182CE',
+  secondary: '#805AD5',
+  accent: '#38B2AC',
 };
 
 const TASKS = [
@@ -27,7 +20,7 @@ const TASKS = [
     time: '10:00 AM',
     category: 'Work',
     priority: 'High',
-    color: COLORS.primary,
+    color: DefaultColors.primary,
   },
   {
     id: '2',
@@ -35,7 +28,7 @@ const TASKS = [
     time: '11:30 AM',
     category: 'Meeting',
     priority: 'Medium',
-    color: COLORS.secondary,
+    color: DefaultColors.secondary,
   },
   {
     id: '3',
@@ -43,7 +36,7 @@ const TASKS = [
     time: '1:00 PM',
     category: 'Personal',
     priority: 'Medium',
-    color: COLORS.accent,
+    color: DefaultColors.accent,
   },
 ];
 
@@ -68,10 +61,11 @@ export default function DashboardScreen() {
   const today = new Date();
   const formattedDate = format(today, 'EEEE, MMMM d, yyyy');
   const { user } = useAuth();
+  const { colors, isDarkMode } = useTheme();
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar style="dark" />
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar style={isDarkMode ? "light" : "dark"} />
       
       <ScrollView 
         style={styles.scrollView}
@@ -80,64 +74,64 @@ export default function DashboardScreen() {
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.greeting}>Good morning,</Text>
-            <Text style={styles.userName}>{user?.user_metadata?.full_name || 'User'}</Text>
-            <Text style={styles.date}>{formattedDate}</Text>
+            <Text style={[styles.greeting, { color: colors.textSecondary }]}>Good morning,</Text>
+            <Text style={[styles.userName, { color: colors.text }]}>{user?.user_metadata?.full_name || 'User'}</Text>
+            <Text style={[styles.date, { color: colors.textSecondary }]}>{formattedDate}</Text>
           </View>
-          <TouchableOpacity style={styles.notificationButton}>
-            <Bell color={COLORS.textSecondary} size={24} />
-            <View style={styles.notificationBadge} />
+          <TouchableOpacity style={[styles.notificationButton, { backgroundColor: colors.card }]}>
+            <Bell color={colors.textSecondary} size={24} />
+            <View style={[styles.notificationBadge, { backgroundColor: colors.error }]} />
           </TouchableOpacity>
         </View>
 
         {/* Quick Actions */}
         <View style={styles.quickActionsContainer}>
-          <TouchableOpacity style={styles.quickActionBtn}>
-            <View style={[styles.iconContainer, { backgroundColor: `${COLORS.primary}20` }]}>
-              <Calendar color={COLORS.primary} size={20} />
+          <TouchableOpacity style={[styles.quickActionBtn, { backgroundColor: colors.card }]}>
+            <View style={[styles.iconContainer, { backgroundColor: `${colors.primary}20` }]}>
+              <Calendar color={colors.primary} size={20} />
             </View>
-            <Text style={styles.quickActionText}>Add Event</Text>
+            <Text style={[styles.quickActionText, { color: colors.textSecondary }]}>Add Event</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.quickActionBtn}>
-            <View style={[styles.iconContainer, { backgroundColor: `${COLORS.secondary}20` }]}>
-              <PlusCircle color={COLORS.secondary} size={20} />
+          <TouchableOpacity style={[styles.quickActionBtn, { backgroundColor: colors.card }]}>
+            <View style={[styles.iconContainer, { backgroundColor: `${colors.secondary}20` }]}>
+              <PlusCircle color={colors.secondary} size={20} />
             </View>
-            <Text style={styles.quickActionText}>New Task</Text>
+            <Text style={[styles.quickActionText, { color: colors.textSecondary }]}>New Task</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.quickActionBtn}>
-            <View style={[styles.iconContainer, { backgroundColor: `${COLORS.accent}20` }]}>
-              <Clock color={COLORS.accent} size={20} />
+          <TouchableOpacity style={[styles.quickActionBtn, { backgroundColor: colors.card }]}>
+            <View style={[styles.iconContainer, { backgroundColor: `${colors.accent}20` }]}>
+              <Clock color={colors.accent} size={20} />
             </View>
-            <Text style={styles.quickActionText}>Reminders</Text>
+            <Text style={[styles.quickActionText, { color: colors.textSecondary }]}>Reminders</Text>
           </TouchableOpacity>
         </View>
 
         {/* Today's Tasks */}
         <View style={styles.sectionContainer}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Today's Tasks</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Today's Tasks</Text>
             <TouchableOpacity style={styles.seeAllButton}>
-              <Text style={styles.seeAllText}>See All</Text>
-              <ArrowRight color={COLORS.primary} size={16} />
+              <Text style={[styles.seeAllText, { color: colors.primary }]}>See All</Text>
+              <ArrowRight color={colors.primary} size={16} />
             </TouchableOpacity>
           </View>
 
           {TASKS.map((task) => (
-            <TouchableOpacity key={task.id} style={styles.taskCard}>
+            <TouchableOpacity key={task.id} style={[styles.taskCard, { backgroundColor: colors.card }]}>
               <View style={[styles.taskPriorityIndicator, { backgroundColor: task.color }]} />
               <View style={styles.taskDetails}>
-                <Text style={styles.taskTitle}>{task.title}</Text>
+                <Text style={[styles.taskTitle, { color: colors.text }]}>{task.title}</Text>
                 <View style={styles.taskMetaContainer}>
-                  <Text style={styles.taskTime}>{task.time}</Text>
-                  <View style={styles.taskCategoryContainer}>
-                    <Text style={styles.taskCategory}>{task.category}</Text>
+                  <Text style={[styles.taskTime, { color: colors.textSecondary }]}>{task.time}</Text>
+                  <View style={[styles.taskCategoryContainer, { backgroundColor: isDarkMode ? colors.card : '#EDF2F7' }]}>
+                    <Text style={[styles.taskCategory, { color: colors.textSecondary }]}>{task.category}</Text>
                   </View>
                   <View style={[styles.taskPriorityContainer, 
-                    { backgroundColor: task.priority === 'High' ? `${COLORS.error}20` : `${COLORS.secondary}20` }]}>
+                    { backgroundColor: task.priority === 'High' ? `${colors.error}20` : `${colors.secondary}20` }]}>
                     <Text style={[styles.taskPriority, 
-                      { color: task.priority === 'High' ? COLORS.error : COLORS.secondary }]}>
+                      { color: task.priority === 'High' ? colors.error : colors.secondary }]}>
                       {task.priority}
                     </Text>
                   </View>
@@ -150,22 +144,22 @@ export default function DashboardScreen() {
         {/* Upcoming Events */}
         <View style={[styles.sectionContainer, { marginBottom: 100 }]}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Upcoming Events</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Upcoming Events</Text>
             <TouchableOpacity style={styles.seeAllButton}>
-              <Text style={styles.seeAllText}>See All</Text>
-              <ArrowRight color={COLORS.primary} size={16} />
+              <Text style={[styles.seeAllText, { color: colors.primary }]}>See All</Text>
+              <ArrowRight color={colors.primary} size={16} />
             </TouchableOpacity>
           </View>
 
           {UPCOMING_EVENTS.map((event) => (
-            <TouchableOpacity key={event.id} style={styles.eventCard}>
-              <View style={styles.eventDateContainer}>
-                <Text style={styles.eventDate}>{event.date}</Text>
-                <Text style={styles.eventTime}>{event.time}</Text>
+            <TouchableOpacity key={event.id} style={[styles.eventCard, { backgroundColor: colors.card }]}>
+              <View style={[styles.eventDateContainer, { borderRightColor: colors.border }]}>
+                <Text style={[styles.eventDate, { color: colors.primary }]}>{event.date}</Text>
+                <Text style={[styles.eventTime, { color: colors.textSecondary }]}>{event.time}</Text>
               </View>
               <View style={styles.eventDetails}>
-                <Text style={styles.eventTitle}>{event.title}</Text>
-                <Text style={styles.eventLocation}>{event.location}</Text>
+                <Text style={[styles.eventTitle, { color: colors.text }]}>{event.title}</Text>
+                <Text style={[styles.eventLocation, { color: colors.textSecondary }]}>{event.location}</Text>
               </View>
             </TouchableOpacity>
           ))}
@@ -178,7 +172,6 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
   },
   scrollView: {
     flex: 1,
@@ -194,24 +187,23 @@ const styles = StyleSheet.create({
   greeting: {
     fontFamily: 'Inter-Regular',
     fontSize: 16,
-    color: COLORS.textSecondary,
+    color: 'gray', // Will be overridden by dynamic style
   },
   userName: {
     fontFamily: 'Inter-SemiBold',
     fontSize: 24,
-    color: COLORS.text,
     marginBottom: 4,
+    color: 'black', // Will be overridden by dynamic style
   },
   date: {
     fontFamily: 'Inter-Regular',
     fontSize: 14,
-    color: COLORS.textSecondary,
+    color: 'gray', // Will be overridden by dynamic style
   },
   notificationButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: COLORS.card,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -227,7 +219,6 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: COLORS.error,
   },
   quickActionsContainer: {
     flexDirection: 'row',
@@ -238,7 +229,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     padding: 16,
-    backgroundColor: COLORS.card,
     borderRadius: 12,
     marginHorizontal: 4,
     shadowColor: '#000',
@@ -258,7 +248,6 @@ const styles = StyleSheet.create({
   quickActionText: {
     fontFamily: 'Inter-Medium',
     fontSize: 12,
-    color: COLORS.textSecondary,
   },
   sectionContainer: {
     marginBottom: 24,
@@ -272,7 +261,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontFamily: 'Inter-SemiBold',
     fontSize: 18,
-    color: COLORS.text,
   },
   seeAllButton: {
     flexDirection: 'row',
@@ -281,12 +269,10 @@ const styles = StyleSheet.create({
   seeAllText: {
     fontFamily: 'Inter-Medium',
     fontSize: 14,
-    color: COLORS.primary,
     marginRight: 4,
   },
   taskCard: {
     flexDirection: 'row',
-    backgroundColor: COLORS.card,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -307,7 +293,6 @@ const styles = StyleSheet.create({
   taskTitle: {
     fontFamily: 'Inter-Medium',
     fontSize: 16,
-    color: COLORS.text,
     marginBottom: 8,
   },
   taskMetaContainer: {
@@ -317,11 +302,9 @@ const styles = StyleSheet.create({
   taskTime: {
     fontFamily: 'Inter-Regular',
     fontSize: 14,
-    color: COLORS.textSecondary,
     marginRight: 12,
   },
   taskCategoryContainer: {
-    backgroundColor: '#EDF2F7',
     borderRadius: 4,
     paddingHorizontal: 8,
     paddingVertical: 2,
@@ -330,7 +313,6 @@ const styles = StyleSheet.create({
   taskCategory: {
     fontFamily: 'Inter-Regular',
     fontSize: 12,
-    color: COLORS.textSecondary,
   },
   taskPriorityContainer: {
     borderRadius: 4,
@@ -343,7 +325,6 @@ const styles = StyleSheet.create({
   },
   eventCard: {
     flexDirection: 'row',
-    backgroundColor: COLORS.card,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -359,19 +340,16 @@ const styles = StyleSheet.create({
     marginRight: 16,
     paddingRight: 16,
     borderRightWidth: 1,
-    borderRightColor: COLORS.border,
     minWidth: 80,
   },
   eventDate: {
     fontFamily: 'Inter-SemiBold',
     fontSize: 14,
-    color: COLORS.primary,
     marginBottom: 4,
   },
   eventTime: {
     fontFamily: 'Inter-Regular',
     fontSize: 14,
-    color: COLORS.textSecondary,
   },
   eventDetails: {
     flex: 1,
@@ -380,12 +358,10 @@ const styles = StyleSheet.create({
   eventTitle: {
     fontFamily: 'Inter-Medium',
     fontSize: 16,
-    color: COLORS.text,
     marginBottom: 4,
   },
   eventLocation: {
     fontFamily: 'Inter-Regular',
     fontSize: 14,
-    color: COLORS.textSecondary,
   },
 });

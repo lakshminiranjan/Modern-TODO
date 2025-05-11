@@ -1,53 +1,184 @@
-import { supabase } from '@/lib/supabase';
-import type { Database } from '@/types/supabase';
+import { supabase } from './supabase';
+import type { Database } from '../types/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type Task = Database['public']['Tables']['tasks']['Row'];
 export type InsertTask = Database['public']['Tables']['tasks']['Insert'];
 export type UpdateTask = Database['public']['Tables']['tasks']['Update'];
 
-export async function getTasks() {
-  const { data, error } = await supabase
-    .from('tasks')
-    .select('*')
-    .order('created_at', { ascending: false });
+// Cache keys
+const TASKS_CACHE_KEY = 'tasks_cache';
+const TASKS_CACHE_TIMESTAMP_KEY = 'tasks_cache_timestamp';
+const CACHE_EXPIRY_TIME = 5 * 60 * 1000; // 5 minutes in milliseconds
 
-  if (error) throw error;
-  return data;
+export async function getTasks(forceRefresh = false) {
+  try {
+    // Try to get data from cache first if not forcing refresh
+    if (!forceRefresh) {
+      const cachedData = await getCachedTasks();
+      if (cachedData) {
+        console.log('Using cached tasks data');
+        return cachedData;
+      }
+    }
+    
+    console.log('Fetching tasks from database...');
+    
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching tasks:', error);
+      
+      // If there's an error, try to return cached data as fallback
+      const cachedData = await getCachedTasks(true); // ignore expiry
+      if (cachedData) {
+        console.log('Using cached tasks data as fallback after error');
+        return cachedData;
+      }
+      
+      throw error;
+    }
+    
+    // Cache the fresh data
+    if (data) {
+      await cacheTasks(data);
+    }
+    
+    console.log(`Successfully fetched ${data?.length || 0} tasks`);
+    return data || [];
+  } catch (err) {
+    console.error('Exception in getTasks:', err);
+    throw err;
+  }
+}
+
+// Helper function to cache tasks
+async function cacheTasks(tasks: Task[]) {
+  try {
+    await AsyncStorage.setItem(TASKS_CACHE_KEY, JSON.stringify(tasks));
+    await AsyncStorage.setItem(TASKS_CACHE_TIMESTAMP_KEY, Date.now().toString());
+  } catch (e) {
+    console.error('Error caching tasks:', e);
+  }
+}
+
+// Helper function to get cached tasks
+async function getCachedTasks(ignoreExpiry = false): Promise<Task[] | null> {
+  try {
+    const cachedTasksJson = await AsyncStorage.getItem(TASKS_CACHE_KEY);
+    const timestampStr = await AsyncStorage.getItem(TASKS_CACHE_TIMESTAMP_KEY);
+    
+    if (!cachedTasksJson || !timestampStr) {
+      return null;
+    }
+    
+    // Check if cache is expired
+    if (!ignoreExpiry) {
+      const timestamp = parseInt(timestampStr, 10);
+      const now = Date.now();
+      if (now - timestamp > CACHE_EXPIRY_TIME) {
+        console.log('Tasks cache expired');
+        return null;
+      }
+    }
+    
+    return JSON.parse(cachedTasksJson);
+  } catch (e) {
+    console.error('Error retrieving cached tasks:', e);
+    return null;
+  }
 }
 
 export async function createTask(task: InsertTask) {
-  const { data, error } = await supabase
-    .from('tasks')
-    .insert(task)
-    .select()
-    .single();
+  try {
+    console.log('Creating new task:', task);
+    
+    const { data, error } = await supabase
+      .from('tasks')
+      .insert(task)
+      .select()
+      .single();
 
-  if (error) throw error;
-  return data;
+    if (error) {
+      console.error('Error creating task:', error);
+      throw error;
+    }
+    
+    console.log('Task created successfully:', data);
+    return data;
+  } catch (err) {
+    console.error('Exception in createTask:', err);
+    throw err;
+  }
 }
 
 export async function updateTask(id: string, updates: UpdateTask) {
-  const { data, error } = await supabase
-    .from('tasks')
-    .update(updates)
-    .eq('id', id)
-    .select()
-    .single();
+  try {
+    // Make sure we're only sending fields that exist in the database
+    const safeUpdates: UpdateTask = {
+      status: updates.status,
+      title: updates.title,
+      description: updates.description,
+      priority: updates.priority,
+      due_date: updates.due_date,
+      updated_at: new Date().toISOString()
+    };
 
-  if (error) throw error;
-  return data;
+    // Remove undefined fields to avoid sending them to the database
+    Object.keys(safeUpdates).forEach(key => {
+      if (safeUpdates[key as keyof UpdateTask] === undefined) {
+        delete safeUpdates[key as keyof UpdateTask];
+      }
+    });
+
+    console.log('Updating task with ID:', id, 'Updates:', safeUpdates);
+    
+    const { data, error } = await supabase
+      .from('tasks')
+      .update(safeUpdates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating task:', error);
+      throw error;
+    }
+    
+    return data;
+  } catch (err) {
+    console.error('Exception in updateTask:', err);
+    throw err;
+  }
 }
 
 export async function deleteTask(id: string) {
-  const { error } = await supabase
-    .from('tasks')
-    .delete()
-    .eq('id', id);
+  try {
+    console.log('Deleting task with ID:', id);
+    
+    const { error } = await supabase
+      .from('tasks')
+      .delete()
+      .eq('id', id);
 
-  if (error) throw error;
+    if (error) {
+      console.error('Error deleting task:', error);
+      throw error;
+    }
+    
+    console.log('Successfully deleted task with ID:', id);
+  } catch (err) {
+    console.error('Exception in deleteTask:', err);
+    throw err;
+  }
 }
 
 export function subscribeToTasks(callback: (tasks: Task[]) => void) {
+  console.log('Setting up real-time subscription to tasks table');
+  
   return supabase
     .channel('tasks')
     .on(
@@ -57,14 +188,26 @@ export function subscribeToTasks(callback: (tasks: Task[]) => void) {
         schema: 'public',
         table: 'tasks'
       },
-      async () => {
-        // Fetch all tasks after any change
-        const { data } = await supabase
-          .from('tasks')
-          .select('*')
-          .order('created_at', { ascending: false });
+      async (payload) => {
+        console.log('Real-time update received:', payload.eventType, payload);
         
-        if (data) callback(data);
+        try {
+          // Fetch all tasks after any change
+          const { data, error } = await supabase
+            .from('tasks')
+            .select('*')
+            .order('created_at', { ascending: false });
+          
+          if (error) {
+            console.error('Error fetching tasks in subscription:', error);
+            return;
+          }
+          
+          console.log(`Subscription update: fetched ${data?.length || 0} tasks`);
+          if (data) callback(data);
+        } catch (err) {
+          console.error('Exception in subscription callback:', err);
+        }
       }
     )
     .subscribe();

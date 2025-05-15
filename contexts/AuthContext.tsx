@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+import { supabase, updateEmailTemplates, initializeSupabaseOtpSettings } from '../lib/supabase';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -35,6 +35,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<UserWithProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  // Initialize Supabase OTP settings when the app starts
+  useEffect(() => {
+    // This is a fire-and-forget operation, we don't need to wait for it
+    initializeSupabaseOtpSettings().catch(error => {
+      console.log('Supabase OTP settings initialization failed (this is normal if not admin):', error);
+    });
+  }, []);
 
   // Store profile in memory and AsyncStorage instead of database
   // This is a temporary workaround until RLS issues are fixed
@@ -117,6 +125,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // If we have a session, load profile data
       if (session?.user) {
+        // We don't need to check for password reset sessions anymore
+        // since we're using OTP-based password reset
         await updateUserWithProfile(session.user);
         router.replace('/(tabs)');
       } else {
@@ -132,8 +142,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(session);
       
       if (event === 'SIGNED_IN' && session?.user) {
+        // We don't need to check for password reset sessions anymore
+        // since we're using OTP-based password reset
         await updateUserWithProfile(session.user);
         router.replace('/(tabs)');
+      } else if (event === 'PASSWORD_RECOVERY') {
+        // We're using OTP-based password reset now, so we don't need to handle this event
+        // Just redirect to login
+        router.replace('/login');
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         router.replace('/login');

@@ -45,8 +45,7 @@ export default function DeleteEventButton({
       const { error } = await supabase
         .from('events')
         .delete()
-        .eq('id', eventId)
-        .eq('user_id', user.id); // Extra security to ensure user can only delete their own events
+        .match({ id: eventId, user_id: user.id }); // Using match instead of eq for type safety
       
       if (error) {
         throw error;

@@ -68,7 +68,7 @@ export default function AddEventModal({ visible, onClose, onEventAdded }: { visi
         const createdEvent = await createEvent(eventData);
         
         // Check if it's a mock event (has an ID starting with 'mock-')
-        if (createdEvent.id.toString().startsWith('mock-')) {
+        if ('id' in createdEvent && createdEvent.id.toString().startsWith('mock-')) {
           Alert.alert(
             'Warning', 
             'The events table does not exist in your database. The event appears to be created but is not actually saved.'
@@ -78,7 +78,7 @@ export default function AddEventModal({ visible, onClose, onEventAdded }: { visi
         }
         
         // Pass the created event to the callback for optimistic UI updates
-        if (onEventAdded) onEventAdded(createdEvent);
+        if (onEventAdded && 'id' in createdEvent) onEventAdded(createdEvent);
         onClose();
       } catch (createErr: any) {
         // Provide a more specific error message if available

@@ -66,10 +66,15 @@ export async function loadCalendarData(
 
   try {
     const [tasksData, eventsData] = await Promise.all([getTasks(), getEvents()]);
-    setTasks(tasksData);
+    // Ensure tasksData is an array of Task objects (filter out any error results)
+    const validTasks = Array.isArray(tasksData)
+      ? tasksData.filter((task): task is Task => !!task && !('error' in task))
+      : [];
+    setTasks(validTasks);
+
     setEvents(eventsData);
 
-    await syncReminders(tasksData, eventsData);
+    await syncReminders(validTasks, eventsData);
   } catch (error) {
     console.error('Error loading calendar data:', error);
   } finally {

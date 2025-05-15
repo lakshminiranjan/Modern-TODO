@@ -80,6 +80,7 @@ export default function SettingsScreen() {
 
       <ScrollView
         style={styles.scrollView}
+        contentContainerStyle={{ paddingBottom: 60 }} // Add padding to the content container
         showsVerticalScrollIndicator={false}
       >
         {/* User Profile Section */}
@@ -456,6 +457,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+    paddingBottom: 80, // Add extra padding at the bottom to account for the tab bar
   },
   header: {
     paddingHorizontal: 16,

@@ -142,16 +142,14 @@ export async function createEventsTable() {
           
           const { error: insertError } = await supabaseAdmin
             .from('events')
-            .insert([
-              { 
-                user_id: user.id,
-                title: 'Test Event', 
-                description: 'This is a test event to create the table structure',
-                start_time: new Date().toISOString(),
-                end_time: new Date(Date.now() + 3600000).toISOString(),
-                location: 'Test Location'
-              }
-            ]);
+            .insert({ 
+              user_id: user.id as string,
+              title: 'Test Event', 
+              description: 'This is a test event to create the table structure',
+              start_time: new Date().toISOString(),
+              end_time: new Date(Date.now() + 3600000).toISOString(),
+              location: 'Test Location'
+            } as Database['public']['Tables']['events']['Insert']);
           
           if (insertError) {
             console.error('Failed to create events table via insert:', insertError);
@@ -184,7 +182,7 @@ const EVENTS_CACHE_KEY = 'events_cache';
 const EVENTS_CACHE_TIMESTAMP_KEY = 'events_cache_timestamp';
 const CACHE_EXPIRY_TIME = 5 * 60 * 1000; // 5 minutes in milliseconds
 
-export async function getEvents(forceRefresh = false) {
+export async function getEvents(forceRefresh = false): Promise<Event[]> {
   try {
     // Try to get data from cache first if not forcing refresh
     if (!forceRefresh) {
@@ -222,7 +220,8 @@ export async function getEvents(forceRefresh = false) {
     
     // If we have a user, filter by their ID
     if (user) {
-      query = query.eq('user_id', user.id);
+      // Use the filter method with the correct typing
+      query = query.filter('user_id', 'eq', user.id);
     }
     
     const { data, error } = await query;
@@ -242,11 +241,13 @@ export async function getEvents(forceRefresh = false) {
     
     // Cache the fresh data
     if (data) {
-      await cacheEvents(data);
+      // First convert to unknown, then to Event[] to avoid TypeScript error
+      const typedData = data as unknown as Event[];
+      await cacheEvents(typedData);
     }
     
     console.log(`Successfully fetched ${data?.length || 0} events`);
-    return data || [];
+    return (data as unknown as Event[]) || [];
   } catch (err) {
     console.error('Exception in getEvents:', err);
     
@@ -325,7 +326,7 @@ export async function createEvent(event: InsertEvent) {
     if (!event.user_id) {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        event.user_id = user.id;
+        event.user_id = user.id as string;
       }
     }
     
@@ -334,9 +335,22 @@ export async function createEvent(event: InsertEvent) {
       throw new Error('Event title and start time are required');
     }
     
+    // Create a properly typed event object that matches the Insert type
+    const typedEvent: Database['public']['Tables']['events']['Insert'] = {
+      id: event.id,
+      user_id: event.user_id,
+      title: event.title,
+      description: event.description,
+      start_time: event.start_time,
+      end_time: event.end_time,
+      location: event.location,
+      created_at: event.created_at,
+      updated_at: event.updated_at
+    };
+    
     const { data, error } = await supabase
       .from('events')
-      .insert(event)
+      .insert(typedEvent)
       .select()
       .single();
 
@@ -346,7 +360,7 @@ export async function createEvent(event: InsertEvent) {
     }
     
     console.log('Event created successfully:', data);
-    return data;
+    return data as unknown as Event;
   } catch (err) {
     console.error('Exception in createEvent:', err);
     throw err;
@@ -358,33 +372,26 @@ export async function updateEvent(id: string, updates: UpdateEvent) {
     // Get the current user's ID
     const { data: { user } } = await supabase.auth.getUser();
     
-    // Make sure we're only sending fields that exist in the database
+    // Make sure we're only sending fields that exist in the UpdateEvent type
     const safeUpdates: UpdateEvent = {
-      title: updates.title,
-      description: updates.description,
-      start_time: updates.start_time,
-      end_time: updates.end_time,
-      location: updates.location,
+      ...(updates.title !== undefined ? { title: updates.title } : {}),
+      ...(updates.description !== undefined ? { description: updates.description } : {}),
+      ...(updates.start_time !== undefined ? { start_time: updates.start_time } : {}),
+      ...(updates.end_time !== undefined ? { end_time: updates.end_time } : {}),
+      ...(updates.location !== undefined ? { location: updates.location } : {}),
       updated_at: new Date().toISOString(),
     };
-
-    // Remove undefined fields to avoid sending them to the database
-    Object.keys(safeUpdates).forEach(key => {
-      if (safeUpdates[key as keyof UpdateEvent] === undefined) {
-        delete safeUpdates[key as keyof UpdateEvent];
-      }
-    });
 
     console.log('Updating event with ID:', id, 'Updates:', safeUpdates);
     
     let query = supabase
       .from('events')
-      .update(safeUpdates)
-      .eq('id', id);
+      .update(safeUpdates as UpdateEvent)
+      .eq('id', id as any);
     
     // If we have a user, add user_id filter for security
     if (user) {
-      query = query.eq('user_id', user.id);
+      query = query.filter('user_id', 'eq', user.id);
     }
     
     const { data, error } = await query.select().single();
@@ -395,7 +402,7 @@ export async function updateEvent(id: string, updates: UpdateEvent) {
     }
     
     console.log('Event updated successfully:', data);
-    return data;
+    return data as unknown as Event;
   } catch (err) {
     console.error('Exception in updateEvent:', err);
     throw err;
@@ -414,11 +421,11 @@ export async function deleteEvent(id: string) {
       .delete();
     
     // Add ID filter
-    query = query.eq('id', id);
+    query = query.eq('id', id as any);
     
     // If we have a user, add user_id filter for security
     if (user) {
-      query = query.eq('user_id', user.id);
+      query = query.filter('user_id', 'eq', user.id);
     }
     
     const { error } = await query;
@@ -472,7 +479,7 @@ export function subscribeToEvents(callback: (events: Event[]) => void) {
               
               // Filter by user ID if available
               if (userId) {
-                query = query.eq('user_id', userId);
+                query = query.filter('user_id', 'eq', userId);
               }
               
               const { data, error } = await query;
@@ -483,7 +490,7 @@ export function subscribeToEvents(callback: (events: Event[]) => void) {
               }
               
               console.log(`Subscription update: fetched ${data?.length || 0} events`);
-              if (data) callback(data);
+              if (data) callback(data as unknown as Event[]);
             } catch (err) {
               console.error('Exception in subscription callback:', err);
               callback([]);

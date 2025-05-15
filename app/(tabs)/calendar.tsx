@@ -58,9 +58,32 @@ export default function CalendarScreen() {
       // Wait for both promises to resolve
       const [tasksData, eventsData] = await Promise.all([tasksPromise, eventsPromise]);
       
-      // Update state with the results
-      setTasks(tasksData);
-      setEvents(eventsData);
+      // Update state with the results - map tasks to match the expected state type
+      // Check if tasksData is an array before mapping
+      if (Array.isArray(tasksData)) {
+        setTasks(tasksData.map(task => {
+          if ('id' in task && 'title' in task) {
+            return {
+              id: task.id,
+              title: task.title,
+              due_date: task.due_date || undefined // Convert null to undefined
+            };
+          }
+          return null;
+        }).filter((task): task is NonNullable<typeof task> => task !== null));
+      } else {
+        // Handle the case where tasksData is an error object
+        console.error('Invalid tasks data format:', tasksData);
+        setTasks([]);
+      }
+      
+      // Also check if eventsData is an array before setting it
+      if (Array.isArray(eventsData)) {
+        setEvents(eventsData);
+      } else {
+        console.error('Invalid events data format:', eventsData);
+        setEvents([]);
+      }
     } catch (err) {
       console.error('General error in loadCalendarData:', err);
       // Handle general errors silently
@@ -114,7 +137,12 @@ export default function CalendarScreen() {
             }
           }
         }
-      ]
+      ],
+      { 
+        // This doesn't affect the actual styling of the Alert on most platforms
+        // but it's good practice to include it for consistency
+        cancelable: true
+      }
     );
   };
 
@@ -184,12 +212,12 @@ export default function CalendarScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.headerContainer}>
         <Text style={[styles.header, { color: colors.text }]}>Calendar</Text>
         <TouchableOpacity 
           onPress={() => setIsAddEventModalVisible(true)} 
-          style={styles.addButton}
+          style={[styles.addButton, { backgroundColor: colors.primary }]}
         >
           <Text style={styles.addButtonText}>Add Event</Text>
         </TouchableOpacity>
@@ -209,12 +237,16 @@ export default function CalendarScreen() {
         </View>
       ) : (
         <ScrollView 
+          style={{ backgroundColor: colors.background }}
+          contentContainerStyle={{ paddingBottom: 60 }} // Add padding to the content container
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
               colors={[colors.primary]}
+              tintColor={colors.primary}
+              progressBackgroundColor={colors.card}
             />
           }>
           {/* Monthly Calendar View */}
@@ -228,6 +260,7 @@ export default function CalendarScreen() {
                   key={index}
                   style={[
                     styles.dayCell,
+                    { backgroundColor: day ? 'transparent' : colors.card },
                     day && isSameDay(day, selectedDate) && styles.selectedDay,
                     day && isSameDay(day, selectedDate) && { backgroundColor: colors.primary },
                   ]}
@@ -255,7 +288,7 @@ export default function CalendarScreen() {
                       )}
                     </View>
                   ) : (
-                    <Text> </Text>
+                    <Text style={{ color: colors.text }}> </Text>
                   )}
                 </TouchableOpacity>
               ))}
@@ -279,10 +312,10 @@ export default function CalendarScreen() {
                   <View style={styles.eventHeader}>
                     <Text style={[styles.eventTitle, { color: colors.text }]}>{event.title}</Text>
                     <TouchableOpacity 
-                      style={styles.deleteButton}
+                      style={[styles.deleteButton, { backgroundColor: colors.card }]}
                       onPress={() => handleDeleteEvent(event.id, event.title)}
                     >
-                      <Trash2 size={18} color="#dc3545" />
+                      <Trash2 size={18} color={colors.error} />
                     </TouchableOpacity>
                   </View>
                   
@@ -320,6 +353,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
+    paddingBottom: 80, // Add extra padding at the bottom to account for the tab bar
   },
   headerContainer: {
     flexDirection: 'row',
@@ -343,7 +377,6 @@ const styles = StyleSheet.create({
   },
 
   addButton: {
-    backgroundColor: '#3E64FF',
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 8,

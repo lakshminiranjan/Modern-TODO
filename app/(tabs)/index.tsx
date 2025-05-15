@@ -172,6 +172,7 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    paddingBottom: 80, // Add extra padding at the bottom to account for the tab bar
   },
   scrollView: {
     flex: 1,

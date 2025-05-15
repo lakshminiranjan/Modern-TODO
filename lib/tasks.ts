@@ -138,8 +138,8 @@ export async function updateTask(id: string, updates: UpdateTask) {
     
     const { data, error } = await supabase
       .from('tasks')
-      .update(safeUpdates)
-      .eq('id', id)
+      .update(safeUpdates as UpdateTask)
+      .eq('id', id as any)
       .select()
       .single();
 
@@ -159,10 +159,11 @@ export async function deleteTask(id: string) {
   try {
     console.log('Deleting task with ID:', id);
     
+    // Use type assertion to match the expected type for the id parameter
     const { error } = await supabase
       .from('tasks')
       .delete()
-      .eq('id', id);
+      .eq('id', id as any);
 
     if (error) {
       console.error('Error deleting task:', error);
@@ -204,7 +205,7 @@ export function subscribeToTasks(callback: (tasks: Task[]) => void) {
           }
           
           console.log(`Subscription update: fetched ${data?.length || 0} tasks`);
-          if (data) callback(data);
+          if (data) callback(data as unknown as Task[]);
         } catch (err) {
           console.error('Exception in subscription callback:', err);
         }
@@ -220,10 +221,16 @@ export async function getTaskStats() {
 
   if (error) throw error;
 
-  const total = tasks.length;
-  const completed = tasks.filter(t => t.status === 'completed').length;
-  const pending = tasks.filter(t => t.status === 'pending').length;
-  const highPriority = tasks.filter(t => t.priority === 'high').length;
+  // Type guard to ensure we only process valid task objects
+  const isTask = (t: any): t is { status: any; priority: any; created_at: any } =>
+    t && typeof t === 'object' && 'status' in t && 'priority' in t && 'created_at' in t;
+
+  const validTasks = (tasks as any[]).filter(isTask);
+
+  const total = validTasks.length;
+  const completed = validTasks.filter(t => t.status === 'completed').length;
+  const pending = validTasks.filter(t => t.status === 'pending').length;
+  const highPriority = validTasks.filter(t => t.priority === 'high').length;
 
   return {
     total,
@@ -237,8 +244,8 @@ export async function getTaskStats() {
     },
     tasksByPriority: {
       high: highPriority,
-      medium: tasks.filter(t => t.priority === 'medium').length,
-      low: tasks.filter(t => t.priority === 'low').length,
+      medium: validTasks.filter(t => t.priority === 'medium').length,
+      low: validTasks.filter(t => t.priority === 'low').length,
     }
   };
 }

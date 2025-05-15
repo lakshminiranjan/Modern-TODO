@@ -53,7 +53,7 @@ export default function TasksScreen() {
       const data = await getTasks(forceRefresh);
       console.log(`Loaded ${data.length} tasks from server`);
       
-      setTasks(data);
+      setTasks(data as Task[]);
     } catch (err: unknown) {
       console.error('Error loading tasks:', err);
       const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
@@ -231,6 +231,7 @@ export default function TasksScreen() {
 
       <ScrollView
         style={styles.taskList}
+        contentContainerStyle={{ paddingBottom: 60 }} // Add padding to the content container
         showsVerticalScrollIndicator={false}
       >
         {loading ? (
@@ -323,6 +324,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+    paddingBottom: 80, // Add extra padding at the bottom to account for the tab bar
   },
   header: {
     flexDirection: 'row',

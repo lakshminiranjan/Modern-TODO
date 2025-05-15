@@ -32,6 +32,22 @@ export default function AuthLayout() {
           gestureEnabled: true 
         }} 
       />
+      <Stack.Screen 
+        name="otp-verification" 
+        options={{ 
+          headerShown: false,
+          // Prevent going back to login after OTP is sent
+          gestureEnabled: false 
+        }} 
+      />
+      <Stack.Screen 
+        name="set-new-password" 
+        options={{ 
+          headerShown: false,
+          // Prevent going back to OTP verification
+          gestureEnabled: false 
+        }} 
+      />
     </Stack>
   );
 }

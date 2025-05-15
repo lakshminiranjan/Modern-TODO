@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your TaskMaster Verification Code</title>
+  <style>
+    /* Base styles */
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      line-height: 1.6;
+      color: #1E293B;
+      background-color: #F8FAFC;
+      margin: 0;
+      padding: 0;
+    }
+    
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    .email-wrapper {
+      background-color: #FFFFFF;
+      border-radius: 16px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+      overflow: hidden;
+      border: 1px solid #E2E8F0;
+    }
+    
+    .email-header {
+      background: linear-gradient(135deg, #4F46E5, #EC4899);
+      padding: 30px 20px;
+      text-align: center;
+    }
+    
+    .logo {
+      margin-bottom: 15px;
+    }
+    
+    .logo-text {
+      color: white;
+      font-size: 28px;
+      font-weight: bold;
+      margin: 0;
+      letter-spacing: 0.5px;
+    }
+    
+    .email-body {
+      padding: 30px 40px;
+    }
+    
+    .greeting {
+      font-size: 22px;
+      font-weight: 600;
+      margin-top: 0;
+      margin-bottom: 20px;
+      color: #1E293B;
+    }
+    
+    .message {
+      font-size: 16px;
+      margin-bottom: 30px;
+      color: #475569;
+    }
+    
+    .otp-container {
+      background-color: #F1F5F9;
+      padding: 20px;
+      border-radius: 8px;
+      text-align: center;
+      margin: 20px 0;
+    }
+    
+    .otp-label {
+      font-size: 14px;
+      color: #64748B;
+      margin-bottom: 10px;
+    }
+    
+    .otp-code {
+      font-size: 32px;
+      font-weight: bold;
+      letter-spacing: 5px;
+      color: #4F46E5;
+      margin: 0;
+    }
+    
+    .instructions {
+      text-align: center;
+      font-weight: bold;
+      font-size: 18px;
+      margin: 30px 0 20px 0;
+      color: #1E293B;
+    }
+    
+    .expiry-note {
+      font-size: 14px;
+      color: #64748B;
+      margin-bottom: 25px;
+      padding: 10px 15px;
+      background-color: #F1F5F9;
+      border-radius: 8px;
+      border-left: 4px solid #4F46E5;
+    }
+    
+    .security-tips {
+      margin-top: 30px;
+      padding: 15px;
+      background-color: #F8FAFC;
+      border-radius: 8px;
+      border: 1px solid #E2E8F0;
+    }
+    
+    .security-tips-title {
+      font-weight: 600;
+      font-size: 16px;
+      color: #1E293B;
+      margin-top: 0;
+      margin-bottom: 10px;
+    }
+    
+    .security-tips-list {
+      margin: 0;
+      padding-left: 20px;
+    }
+    
+    .security-tips-item {
+      font-size: 14px;
+      color: #475569;
+      margin-bottom: 5px;
+    }
+    
+    .help-text {
+      font-size: 14px;
+      color: #64748B;
+      margin-bottom: 20px;
+    }
+    
+    .email-footer {
+      background-color: #F1F5F9;
+      padding: 20px;
+      text-align: center;
+      font-size: 13px;
+      color: #64748B;
+      border-top: 1px solid #E2E8F0;
+    }
+    
+    .social-links {
+      margin: 15px 0;
+    }
+    
+    .social-link {
+      display: inline-block;
+      margin: 0 8px;
+      color: #4F46E5;
+      text-decoration: none;
+    }
+    
+    .footer-links {
+      margin-top: 10px;
+    }
+    
+    .footer-link {
+      color: #4F46E5;
+      text-decoration: none;
+      margin: 0 8px;
+    }
+    
+    .address {
+      margin-top: 15px;
+      font-style: normal;
+      font-size: 12px;
+    }
+    
+    /* Responsive styles */
+    @media screen and (max-width: 550px) {
+      .email-body {
+        padding: 20px;
+      }
+      
+      .greeting {
+        font-size: 20px;
+      }
+      
+      .message {
+        font-size: 15px;
+      }
+      
+      .otp-code {
+        font-size: 28px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="email-wrapper">
+      <!-- Header with logo -->
+      <div class="email-header">
+        <div class="logo">
+          <!-- You can replace this with an actual logo image -->
+          <h1 class="logo-text">TaskMaster</h1>
+        </div>
+      </div>
+      
+      <!-- Email content -->
+      <div class="email-body">
+        <h2 class="greeting">Verification Code</h2>
+        
+        <p class="message">
+          We received a request to reset your password for your TaskMaster account. 
+          Use the verification code below to complete the password reset process.
+          If you didn't make this request, you can safely ignore this email.
+        </p>
+        
+        <div class="otp-container">
+          <p class="otp-label">Your verification code is:</p>
+          <p class="otp-code" style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #4F46E5; margin: 0;">{{ .Data.otp }}</p>
+        </div>
+        
+        <p class="instructions">
+          Enter this code in the app to reset your password
+        </p>
+        
+        <div class="expiry-note">
+          This verification code will expire in 2 minutes for security reasons.
+        </div>
+        
+        <div class="security-tips">
+          <h3 class="security-tips-title">Security Tips:</h3>
+          <ul class="security-tips-list">
+            <li class="security-tips-item">Never share this code with anyone</li>
+            <li class="security-tips-item">TaskMaster will never ask for this code via phone or email</li>
+            <li class="security-tips-item">Use a strong, unique password for your account</li>
+          </ul>
+        </div>
+        
+        <p class="help-text" style="margin-top: 20px;">
+          If you need any assistance, please contact our support team at support@taskmaster.com
+        </p>
+      </div>
+      
+      <!-- Footer -->
+      <div class="email-footer">
+        <div class="social-links">
+          <a href="#" class="social-link">Twitter</a>
+          <a href="#" class="social-link">Facebook</a>
+          <a href="#" class="social-link">Instagram</a>
+        </div>
+        
+        <div class="footer-links">
+          <a href="#" class="footer-link">Privacy Policy</a>
+          <a href="#" class="footer-link">Terms of Service</a>
+        </div>
+        
+        <address class="address">
+          TaskMaster Inc. • 123 Productivity Lane • Efficiency City, EC 12345
+        </address>
+        
+        <p>© 2023 TaskMaster. All rights reserved.</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

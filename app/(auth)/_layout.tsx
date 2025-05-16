@@ -1,4 +1,5 @@
 import { Stack, Redirect } from 'expo-router';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 
 export default function AuthLayout() {
@@ -11,7 +12,25 @@ export default function AuthLayout() {
 
   // If user is authenticated, redirect to tabs
   if (session) {
-    return <Redirect href="/(tabs)" />;
+    // Use a state variable to delay the redirect until after layout is mounted
+    const [shouldRedirect, setShouldRedirect] = useState(false);
+    
+    // Use useEffect to set the redirect flag after a small delay
+    useEffect(() => {
+      const timer = setTimeout(() => {
+        setShouldRedirect(true);
+      }, 0);
+      
+      return () => clearTimeout(timer);
+    }, []);
+    
+    // Only redirect after the delay
+    if (shouldRedirect) {
+      return <Redirect href="/(tabs)" />;
+    }
+    
+    // Return null while waiting to redirect
+    return null;
   }
 
   return (

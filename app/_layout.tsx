@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Stack, Slot } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFrameworkReady } from '../hooks/useFrameworkReady';
@@ -7,9 +7,13 @@ import * as SplashScreen from 'expo-splash-screen';
 import { AuthProvider } from '../contexts/AuthContext';
 import { ThemeProvider, useTheme } from '../contexts/ThemeContext';
 import { UserPreferencesProvider } from '../contexts/UserPreferencesContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Prevent the splash screen from automatically hiding
 SplashScreen.preventAutoHideAsync();
+
+// Create a global flag to track when the Root Layout is mounted
+global.rootLayoutMounted = false;
 
 function RootLayoutContent() {
   useFrameworkReady();
@@ -19,12 +23,39 @@ function RootLayoutContent() {
     'Inter-Medium': Inter_500Medium,
     'Inter-SemiBold': Inter_600SemiBold,
   });
+  
+  // State to track when layout is fully mounted
+  const [isLayoutMounted, setIsLayoutMounted] = useState(false);
 
   useEffect(() => {
     if (fontsLoaded || fontError) {
       // Hide the splash screen once fonts are loaded
       SplashScreen.hideAsync();
     }
+  }, [fontsLoaded, fontError]);
+  
+  // Set the global flag when the layout is mounted
+  useEffect(() => {
+    if (fontsLoaded || fontError) {
+      // Set a flag in AsyncStorage to indicate the layout is mounted
+      const setLayoutMounted = async () => {
+        try {
+          await AsyncStorage.setItem('root_layout_mounted', 'true');
+          global.rootLayoutMounted = true;
+          setIsLayoutMounted(true);
+          console.log('Root Layout mounted successfully');
+        } catch (error) {
+          console.error('Failed to set layout mounted flag:', error);
+        }
+      };
+      
+      setLayoutMounted();
+    }
+    
+    return () => {
+      // Clean up when unmounted
+      global.rootLayoutMounted = false;
+    };
   }, [fontsLoaded, fontError]);
 
   // Return null to keep splash screen visible while fonts load

@@ -23,7 +23,7 @@ import {
 import { Link, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Mail, Lock, ArrowRight, LogIn, X, AlertCircle, CheckCircle } from 'lucide-react-native';
-import { supabase } from '../../lib/supabase';
+import { supabase, supabaseUrl, supabaseAnonKey } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -122,7 +122,10 @@ export default function LoginScreen() {
   // Redirect if already logged in
   useEffect(() => {
     if (session) {
-      router.replace('/(tabs)');
+      // Use setTimeout to ensure navigation happens after layout is mounted
+      setTimeout(() => {
+        router.replace('/(tabs)');
+      }, 0);
     }
   }, [session]);
 
@@ -218,13 +221,43 @@ export default function LoginScreen() {
           // Supabase expects a 6-digit numeric code
           const cleanOtp = otp.toString().replace(/\D/g, '').substring(0, 6).padStart(6, '0');
           
-          const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
-            // IMPORTANT: Set redirectTo to null explicitly to force OTP mode
-            redirectTo: null,
-            // Include the OTP in the data parameter to ensure it's sent in the email
-            data: {
-              otp: cleanOtp,
-              type: "otp"
+          // First, clear any existing session to prevent conflicts
+          await supabase.auth.signOut();
+          
+          // Wait a moment for the signOut to complete
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Clear any stored session data
+          await AsyncStorage.removeItem('supabase_auth_token');
+          await AsyncStorage.removeItem('supabase_session');
+          
+          console.log('Sending OTP email to:', resetEmail);
+          
+          // Create a new Supabase client just for this operation to avoid session conflicts
+          const { createClient } = require('@supabase/supabase-js');
+          const tempClient = createClient(supabaseUrl, supabaseAnonKey, {
+            auth: {
+              persistSession: false,
+              autoRefreshToken: false,
+              detectSessionInUrl: false,
+              flowType: 'implicit',
+              debug: true
+            }
+          });
+          
+          // Use signInWithOtp instead of resetPasswordForEmail for more reliable OTP delivery
+          const { error } = await tempClient.auth.signInWithOtp({
+            email: resetEmail,
+            options: {
+              // Don't create a new user if one doesn't exist
+              shouldCreateUser: false,
+              // Set data with OTP to ensure it's included in the email
+              data: {
+                otp: cleanOtp,
+                type: "otp"
+              },
+              // Set email redirect to null to force OTP mode
+              emailRedirectTo: null
             }
           });
           
@@ -273,14 +306,15 @@ export default function LoginScreen() {
               // Close the modal first
               setForgotPasswordModalVisible(false);
               
-              // Short delay before navigating to OTP verification screen
+              // Longer delay before navigating to OTP verification screen
+              // This ensures the layout is fully mounted before navigation
               setTimeout(() => {
                 // Navigate to OTP verification screen with email parameter
                 router.push({
                   pathname: '/otp-verification',
                   params: { email: resetEmail }
                 });
-              }, 300);
+              }, 500);
             }
           }]
         );

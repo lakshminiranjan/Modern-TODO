@@ -17,7 +17,7 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Lock, ArrowRight, LogIn, AlertCircle, CheckCircle } from 'lucide-react-native';
-import { supabase } from '../../lib/supabase';
+import { supabase, supabaseUrl, supabaseAnonKey } from '../../lib/supabase';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -291,12 +291,31 @@ export default function OTPVerificationScreen() {
         // Make sure the OTP is in the correct format
         const cleanOtpValue = otpValue.toString().replace(/\D/g, '').substring(0, 6).padStart(6, '0');
         
-        const result = await supabase.auth.verifyOtp({
+        console.log('Verifying OTP for email:', email, 'with token:', cleanOtpValue);
+        
+        // Use the imported supabaseUrl and supabaseAnonKey from the top of the file
+        
+        // Create a new Supabase client just for this operation to avoid session conflicts
+        const { createClient } = require('@supabase/supabase-js');
+        const tempClient = createClient(supabaseUrl, supabaseAnonKey, {
+          auth: {
+            persistSession: false,
+            autoRefreshToken: false,
+            detectSessionInUrl: false,
+            flowType: 'implicit',
+            debug: true
+          }
+        });
+        
+        // Use verifyOtp with magiclink type since we're using signInWithOtp
+        const result = await tempClient.auth.verifyOtp({
           email,
           token: cleanOtpValue,
-          type: 'recovery',
+          type: 'magiclink',
           // Set redirectTo to null explicitly to force OTP mode
-          redirectTo: null
+          options: {
+            redirectTo: null
+          }
         });
         
         const verifyData = result.data;
@@ -351,12 +370,32 @@ export default function OTPVerificationScreen() {
         );
         
         // Navigate to reset password screen with email
-        setTimeout(() => {
-          router.replace({
-            pathname: '/set-new-password',
-            params: { email }
-          });
-        }, 1500);
+        // Check if Root Layout is mounted before navigating
+        const checkAndNavigate = async () => {
+          try {
+            // Wait for the Root Layout to be mounted
+            const isLayoutMounted = await AsyncStorage.getItem('root_layout_mounted');
+            
+            if (isLayoutMounted === 'true' || global.rootLayoutMounted) {
+              // Layout is mounted, safe to navigate
+              router.replace({
+                pathname: '/set-new-password',
+                params: { email }
+              });
+            } else {
+              // Layout not mounted yet, wait and check again
+              console.log('Waiting for Root Layout to mount before navigating...');
+              setTimeout(checkAndNavigate, 100);
+            }
+          } catch (error) {
+            console.error('Error checking layout mounted status:', error);
+            // Wait a bit longer and try again
+            setTimeout(checkAndNavigate, 500);
+          }
+        };
+        
+        // Start the check and navigate process after a short delay
+        setTimeout(checkAndNavigate, 1000);
       } catch (verificationError) {
         console.error('Error during OTP verification:', verificationError);
         
@@ -406,7 +445,12 @@ export default function OTPVerificationScreen() {
       
       // Generate a new OTP
       const newOtp = generateOTP();
-      
+            await supabase.auth.resetPasswordForEmail(email, {
+        data: {
+          otp: newOtp,
+          type: "otp"
+        }
+      });
       // Store OTP, email, and expiry time in AsyncStorage for verification
       await AsyncStorage.setItem(OTP_STORAGE_KEY, newOtp);
       await AsyncStorage.setItem(OTP_EMAIL_KEY, email);

@@ -1,3 +1,9 @@
+// Extend the global object to include rootLayoutMounted
+declare global {
+  // eslint-disable-next-line no-var
+  var rootLayoutMounted: boolean | undefined;
+}
+
 import { useState, useEffect } from 'react';
 import { 
   View, 
@@ -17,7 +23,9 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Lock, ArrowRight, LogIn, AlertCircle, CheckCircle, Eye, EyeOff } from 'lucide-react-native';
-import { supabase } from '../../lib/supabase';
+import { supabase, supabaseUrl, supabaseAnonKey } from '../../lib/supabase';
+import { createClient } from '@supabase/supabase-js';
+import Constants from 'expo-constants';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -91,7 +99,31 @@ export default function SetNewPasswordScreen() {
             'Invalid Session',
             'Your password reset session is invalid or has expired. Please request a new password reset.',
             [
-              { text: 'OK', onPress: () => router.replace('/login') }
+              { text: 'OK', onPress: () => {
+                // Check if Root Layout is mounted before navigating
+                const checkAndNavigate = async () => {
+                  try {
+                    // Wait for the Root Layout to be mounted
+                    const isLayoutMounted = await AsyncStorage.getItem('root_layout_mounted');
+                    
+                    if (isLayoutMounted === 'true' || global.rootLayoutMounted) {
+                      // Layout is mounted, safe to navigate
+                      router.replace('/login');
+                    } else {
+                      // Layout not mounted yet, wait and check again
+                      console.log('Waiting for Root Layout to mount before navigating...');
+                      setTimeout(checkAndNavigate, 100);
+                    }
+                  } catch (error) {
+                    console.error('Error checking layout mounted status:', error);
+                    // Wait a bit longer and try again
+                    setTimeout(checkAndNavigate, 500);
+                  }
+                };
+                
+                // Start the check and navigate process
+                setTimeout(checkAndNavigate, 100);
+              } }
             ]
           );
         }
@@ -101,7 +133,7 @@ export default function SetNewPasswordScreen() {
           'Error',
           'Something went wrong. Please try again.',
           [
-            { text: 'OK', onPress: () => router.replace('/login') }
+            { text: 'OK', onPress: () => setTimeout(() => router.replace('/login'), 100) }
           ]
         );
       }
@@ -239,15 +271,33 @@ export default function SetNewPasswordScreen() {
         // Short delay to ensure the token is registered in Supabase
         await new Promise(resolve => setTimeout(resolve, 1500));
         
+        // Use the imported supabaseUrl and supabaseAnonKey from the top of the file
+        
+        console.log('Supabase URL:', supabaseUrl);
+        console.log('Supabase Anon Key:', supabaseAnonKey ? 'Key exists' : 'Key missing');
+        
+        // Create a new Supabase client just for this operation to avoid session conflicts
+        const tempClient = createClient(supabaseUrl, supabaseAnonKey, {
+          auth: {
+            persistSession: false,
+            autoRefreshToken: false,
+            detectSessionInUrl: false,
+            flowType: 'implicit',
+            debug: true
+          }
+        });
+        
         // Re-verify OTP to establish a session
-        const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
+        const { data: verifyData, error: verifyError } = await tempClient.auth.verifyOtp({
           email,
           token: storedOtp,
-          type: 'recovery',
-          // Don't use redirectTo for mobile apps
-          options: Platform.OS === 'web' 
-            ? { redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/set-new-password?email=${encodeURIComponent(email)}` }
-            : undefined
+          type: 'magiclink', // Changed to magiclink since we're using signInWithOtp
+          options: {
+            // Don't use redirectTo for mobile apps
+            redirectTo: Platform.OS === 'web' 
+              ? `${typeof window !== 'undefined' ? window.location.origin : ''}/set-new-password?email=${encodeURIComponent(email)}`
+              : null
+          }
         });
         
         if (verifyError) {
@@ -432,10 +482,33 @@ export default function SetNewPasswordScreen() {
       setPassword('');
       setConfirmPassword('');
       
-      // Redirect to login after 3 seconds
+      // Redirect to login after showing success modal
       setTimeout(() => {
-        setShowSuccessModal(false);
-        router.replace('/login');
+        // Check if Root Layout is mounted before navigating
+        const checkAndNavigate = async () => {
+          try {
+            setShowSuccessModal(false);
+            
+            // Wait for the Root Layout to be mounted
+            const isLayoutMounted = await AsyncStorage.getItem('root_layout_mounted');
+            
+            if (isLayoutMounted === 'true' || global.rootLayoutMounted) {
+              // Layout is mounted, safe to navigate
+              router.replace('/login');
+            } else {
+              // Layout not mounted yet, wait and check again
+              console.log('Waiting for Root Layout to mount before navigating...');
+              setTimeout(checkAndNavigate, 100);
+            }
+          } catch (error) {
+            console.error('Error checking layout mounted status:', error);
+            // Wait a bit longer and try again
+            setTimeout(checkAndNavigate, 500);
+          }
+        };
+        
+        // Start the check and navigate process
+        checkAndNavigate();
       }, 3000);
       
     } catch (error: any) {

@@ -3,20 +3,20 @@ import { createClient } from '@supabase/supabase-js';
 import { Database } from '../types/supabase';
 
 // Default fallback values to prevent network errors if env vars are not loaded
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://yckxqboxgjsltvwijppo.supabase.co';
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlja3hxYm94Z2pzbHR2d2lqcHBvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY1NDQxMDgsImV4cCI6MjA2MjEyMDEwOH0.XkZ5Ke7ZqKMDmNuv-73_09scPQI_4_NLUWjom2kokFg';
-const supabaseServiceKey = process.env.EXPO_PUBLIC_SUPABASE_SERVICE_ROLE_KEY;
+export const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://yckxqboxgjsltvwijppo.supabase.co';
+export const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlja3hxYm94Z2pzbHR2d2lqcHBvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY1NDQxMDgsImV4cCI6MjA2MjEyMDEwOH0.XkZ5Ke7ZqKMDmNuv-73_09scPQI_4_NLUWjom2kokFg';
+export const supabaseServiceKey = process.env.EXPO_PUBLIC_SUPABASE_SERVICE_ROLE_KEY;
 
 // Create the regular client for most operations with network error handling
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
-    persistSession: true,
-    autoRefreshToken: true,
+    persistSession: false, // Changed to false to prevent auto token refresh attempts
+    autoRefreshToken: false, // Disabled auto refresh to prevent the no session error
     detectSessionInUrl: false,
     // Use implicit flow instead of PKCE to avoid WebCrypto API issues
     flowType: 'implicit',
-    // Set debug to true to help troubleshoot auth issues
-    debug: true,
+    // Set debug to false to reduce noise in logs
+    debug: false,
     // CRITICAL: Set to null to force OTP mode for password reset
     emailRedirectTo: null,
     // CRITICAL: Disable email confirmations to ensure OTP is used
@@ -25,6 +25,8 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     autoConfirmNewUsers: false,
     // Set OTP as the preferred method for password reset
     passwordResetMethod: 'otp',
+    // Explicitly set OTP type to ensure it's used
+    otpType: 'recovery',
     storageKey: 'supabase_auth_token',
     storage: {
       getItem: async (key: string) => {
@@ -247,16 +249,31 @@ export async function initializeSupabaseOtpSettings() {
     await AsyncStorage.setItem('supabase_use_otp', 'true');
     await AsyncStorage.setItem('supabase_disable_email_confirmation', 'true');
     
+    // Clear any existing session to ensure a clean state
+    try {
+      await supabase.auth.signOut();
+      console.log('Cleared existing session for clean OTP initialization');
+    } catch (signOutError) {
+      console.log('No active session to clear:', signOutError);
+    }
+    
+    // Clear any stored session data
+    await AsyncStorage.removeItem('supabase_session');
+    await AsyncStorage.removeItem('supabase_auth_token');
+    
     // Log instructions for Supabase Dashboard settings
     console.log('IMPORTANT: To ensure OTP works correctly, configure these settings in Supabase Dashboard:');
     console.log('1. Authentication > Email > Providers > Email:');
     console.log('   - Disable "Enable Email Confirmations"');
     console.log('   - Set "Password Reset Link Lifespan" to 0');
     console.log('2. Authentication > Email Templates:');
-    console.log('   - Ensure the OTP template includes {{ .Data.otp }}');
+    console.log('   - Ensure the OTP template includes {{ .Data.otp }} (not {{ .OTP }})');
     console.log('   - Remove any password reset links from the template');
     console.log('   - Make sure the template only shows the OTP code');
     console.log('   - Verify that the template is properly formatted with HTML');
+    console.log('3. Authentication > Email > SMTP Settings:');
+    console.log('   - Verify that you have a working email provider configured');
+    console.log('   - Test the email delivery to ensure it\'s working');
     
     // Verify OTP template format
     console.log('Verifying OTP template format...');
@@ -265,6 +282,25 @@ export async function initializeSupabaseOtpSettings() {
       console.log('OTP template contains the correct placeholder: {{ .Data.otp }}');
     } else {
       console.warn('WARNING: OTP template may not contain the correct placeholder for OTP code');
+    }
+    
+    // Verify email provider is configured
+    try {
+      // Check if we have the service role key first
+      if (!supabaseServiceKey) {
+        console.log('Service role key not available, skipping admin API verification');
+        console.log('To enable admin API access, set EXPO_PUBLIC_SUPABASE_SERVICE_ROLE_KEY in your environment');
+      } else {
+        // Make a test call to check if email provider is configured using the admin client
+        const testResult = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1 });
+        if (testResult.error) {
+          console.warn('WARNING: Admin API access failed. Make sure email provider is configured in Supabase Dashboard.');
+        } else {
+          console.log('Admin API access successful, email provider should be configured correctly.');
+        }
+      }
+    } catch (adminError) {
+      console.warn('WARNING: Could not verify email provider configuration:', adminError);
     }
     
     return true;
@@ -314,7 +350,7 @@ export async function manageProfile(user: { id: string; full_name?: string; avat
             full_name: profileData.full_name,
             avatar_url: profileData.avatar_url,
             updated_at: profileData.updated_at
-          })
+          } as Database["public"]["Tables"]["profiles"]["Update"])
           .eq('id', user.id as any);
           
         if (!updateError) {

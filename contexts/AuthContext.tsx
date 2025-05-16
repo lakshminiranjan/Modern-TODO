@@ -119,49 +119,182 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    // Check for existing session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      
-      // If we have a session, load profile data
-      if (session?.user) {
-        // We don't need to check for password reset sessions anymore
-        // since we're using OTP-based password reset
-        await updateUserWithProfile(session.user);
-        router.replace('/(tabs)');
-      } else {
+    // Function to handle session retrieval and errors
+    const getInitialSession = async () => {
+      try {
+        // Clear any stale session data first
+        await AsyncStorage.removeItem('supabase_auth_token');
+        
+        // Check for existing session
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Error getting session:', error);
+          setUser(null);
+          setSession(null);
+          setLoading(false);
+          return;
+        }
+        
+        setSession(session);
+        
+        // If we have a session, load profile data
+        if (session?.user) {
+          // We don't need to check for password reset sessions anymore
+          // since we're using OTP-based password reset
+          await updateUserWithProfile(session.user);
+          // Check if Root Layout is mounted before navigating
+          const checkAndNavigate = async () => {
+            try {
+              // Wait for the Root Layout to be mounted
+              const isLayoutMounted = await AsyncStorage.getItem('root_layout_mounted');
+              
+              if (isLayoutMounted === 'true' || global.rootLayoutMounted) {
+                // Layout is mounted, safe to navigate
+                router.replace('/(tabs)');
+              } else {
+                // Layout not mounted yet, wait and check again
+                console.log('Waiting for Root Layout to mount before navigating...');
+                setTimeout(checkAndNavigate, 100);
+              }
+            } catch (error) {
+              console.error('Error checking layout mounted status:', error);
+              // Wait a bit longer and try again
+              setTimeout(checkAndNavigate, 500);
+            }
+          };
+          
+          // Start the check and navigate process
+          setTimeout(checkAndNavigate, 100);
+        } else {
+          setUser(null);
+        }
+      } catch (e) {
+        console.error('Exception in getInitialSession:', e);
         setUser(null);
+        setSession(null);
+      } finally {
+        setLoading(false);
       }
-      
-      setLoading(false);
-    });
+    };
+    
+    // Get initial session
+    getInitialSession();
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event, session?.user?.id);
-      setSession(session);
+    // Listen for auth changes with error handling
+    let subscription: { unsubscribe: () => void } | null = null;
+    
+    try {
+      const { data: subscriptionData } = supabase.auth.onAuthStateChange(async (event, session) => {
+        console.log('Auth state changed:', event, session?.user?.id);
+        
+        try {
+          setSession(session);
+          
+          if (event === 'SIGNED_IN' && session?.user) {
+            // We don't need to check for password reset sessions anymore
+            // since we're using OTP-based password reset
+            await updateUserWithProfile(session.user);
+            // Check if Root Layout is mounted before navigating
+            const checkAndNavigate = async () => {
+              try {
+                // Wait for the Root Layout to be mounted
+                const isLayoutMounted = await AsyncStorage.getItem('root_layout_mounted');
+                
+                if (isLayoutMounted === 'true' || global.rootLayoutMounted) {
+                  // Layout is mounted, safe to navigate
+                  router.replace('/(tabs)');
+                } else {
+                  // Layout not mounted yet, wait and check again
+                  console.log('Waiting for Root Layout to mount before navigating...');
+                  setTimeout(checkAndNavigate, 100);
+                }
+              } catch (error) {
+                console.error('Error checking layout mounted status:', error);
+                // Wait a bit longer and try again
+                setTimeout(checkAndNavigate, 500);
+              }
+            };
+            
+            // Start the check and navigate process
+            setTimeout(checkAndNavigate, 100);
+          } else if (event === 'PASSWORD_RECOVERY') {
+            // We're using OTP-based password reset now, so we don't need to handle this event
+            // Check if Root Layout is mounted before navigating
+            const checkAndNavigate = async () => {
+              try {
+                // Wait for the Root Layout to be mounted
+                const isLayoutMounted = await AsyncStorage.getItem('root_layout_mounted');
+                
+                if (isLayoutMounted === 'true' || global.rootLayoutMounted) {
+                  // Layout is mounted, safe to navigate
+                  router.replace('/login');
+                } else {
+                  // Layout not mounted yet, wait and check again
+                  console.log('Waiting for Root Layout to mount before navigating...');
+                  setTimeout(checkAndNavigate, 100);
+                }
+              } catch (error) {
+                console.error('Error checking layout mounted status:', error);
+                // Wait a bit longer and try again
+                setTimeout(checkAndNavigate, 500);
+              }
+            };
+            
+            // Start the check and navigate process
+            setTimeout(checkAndNavigate, 100);
+          } else if (event === 'SIGNED_OUT') {
+            setUser(null);
+            // Clear any stored session data
+            await AsyncStorage.removeItem('supabase_auth_token');
+            
+            // Check if Root Layout is mounted before navigating
+            const checkAndNavigate = async () => {
+              try {
+                // Wait for the Root Layout to be mounted
+                const isLayoutMounted = await AsyncStorage.getItem('root_layout_mounted');
+                
+                if (isLayoutMounted === 'true' || global.rootLayoutMounted) {
+                  // Layout is mounted, safe to navigate
+                  router.replace('/login');
+                } else {
+                  // Layout not mounted yet, wait and check again
+                  console.log('Waiting for Root Layout to mount before navigating...');
+                  setTimeout(checkAndNavigate, 100);
+                }
+              } catch (error) {
+                console.error('Error checking layout mounted status:', error);
+                // Wait a bit longer and try again
+                setTimeout(checkAndNavigate, 500);
+              }
+            };
+            
+            // Start the check and navigate process
+            setTimeout(checkAndNavigate, 100);
+          } else {
+            setUser(session?.user ?? null);
+          }
+        } catch (e) {
+          console.error('Error handling auth state change:', e);
+        } finally {
+          setLoading(false);
+        }
+      });
       
-      if (event === 'SIGNED_IN' && session?.user) {
-        // We don't need to check for password reset sessions anymore
-        // since we're using OTP-based password reset
-        await updateUserWithProfile(session.user);
-        router.replace('/(tabs)');
-      } else if (event === 'PASSWORD_RECOVERY') {
-        // We're using OTP-based password reset now, so we don't need to handle this event
-        // Just redirect to login
-        router.replace('/login');
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-        router.replace('/login');
-      } else {
-        setUser(session?.user ?? null);
-      }
-      
+      subscription = subscriptionData.subscription;
+    } catch (e) {
+      console.error('Error setting up auth state change listener:', e);
       setLoading(false);
-    });
+    }
 
     return () => {
-      subscription.unsubscribe();
+      if (subscription) {
+        try {
+          subscription.unsubscribe();
+        } catch (e) {
+          console.error('Error unsubscribing from auth state changes:', e);
+        }
+      }
     };
   }, []);
 
@@ -172,7 +305,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await AsyncStorage.removeItem(`${PROFILE_STORAGE_KEY}_${user.id}`);
       }
       await supabase.auth.signOut();
-      router.replace('/login');
+      
+      // Check if Root Layout is mounted before navigating
+      const checkAndNavigate = async () => {
+        try {
+          // Wait for the Root Layout to be mounted
+          const isLayoutMounted = await AsyncStorage.getItem('root_layout_mounted');
+          
+          if (isLayoutMounted === 'true' || global.rootLayoutMounted) {
+            // Layout is mounted, safe to navigate
+            router.replace('/login');
+          } else {
+            // Layout not mounted yet, wait and check again
+            console.log('Waiting for Root Layout to mount before navigating...');
+            setTimeout(checkAndNavigate, 100);
+          }
+        } catch (error) {
+          console.error('Error checking layout mounted status:', error);
+          // Wait a bit longer and try again
+          setTimeout(checkAndNavigate, 500);
+        }
+      };
+      
+      // Start the check and navigate process
+      setTimeout(checkAndNavigate, 100);
     } catch (error) {
       console.error('Error signing out:', error);
     }

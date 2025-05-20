@@ -15,8 +15,8 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: false,
     // Use implicit flow instead of PKCE to avoid WebCrypto API issues
     flowType: 'implicit',
-    // Set debug to false to reduce noise in logs
-    debug: false,
+    // Set debug to true temporarily to help diagnose issues
+    debug: true,
     // CRITICAL: Set to null to force OTP mode for password reset
     emailRedirectTo: null,
     // CRITICAL: Disable email confirmations to ensure OTP is used

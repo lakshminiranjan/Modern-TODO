@@ -1,12 +1,17 @@
 import { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, RefreshControl, Dimensions, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getTasks } from '../../lib/tasks';
 import { getEvents, subscribeToEvents, Event, deleteEvent } from '../../lib/events';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, parseISO, addMonths, subMonths } from 'date-fns';
 import { useTheme } from '@/contexts/ThemeContext';
 import AddEventModal from '@/components/AddEventModal';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, MapPin, Trash2 } from 'lucide-react-native';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, MapPin, Trash2, PlusCircle } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
+import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
+
+const { width, height } = Dimensions.get('window');
 
 export default function CalendarScreen() {
   const [tasks, setTasks] = useState<{ id: string; title: string; due_date?: string }[]>([]);
@@ -16,7 +21,7 @@ export default function CalendarScreen() {
   const [isAddEventModalVisible, setIsAddEventModalVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const { colors } = useTheme();
+  const { colors, isDarkMode } = useTheme();
 
   useEffect(() => {
     // Load calendar data immediately when component mounts
@@ -212,144 +217,284 @@ export default function CalendarScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.headerContainer}>
-        <Text style={[styles.header, { color: colors.text }]}>Calendar</Text>
-        <TouchableOpacity 
-          onPress={() => setIsAddEventModalVisible(true)} 
-          style={[styles.addButton, { backgroundColor: colors.primary }]}
-        >
-          <Text style={styles.addButtonText}>Add Event</Text>
-        </TouchableOpacity>
-      </View>
-      
-
-      <AddEventModal
-        visible={isAddEventModalVisible}
-        onClose={() => setIsAddEventModalVisible(false)}
-        onEventAdded={handleEventAdded}
+    <View style={{ flex: 1 }}>
+      {/* Background gradient */}
+      <LinearGradient
+        colors={[colors.primaryDark, colors.primary, colors.secondary]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.backgroundGradient}
       />
       
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.text }]}>Loading calendar...</Text>
-        </View>
-      ) : (
-        <ScrollView 
-          style={{ backgroundColor: colors.background }}
-          contentContainerStyle={{ paddingBottom: 60 }} // Add padding to the content container
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              colors={[colors.primary]}
-              tintColor={colors.primary}
-              progressBackgroundColor={colors.card}
-            />
-          }>
-          {/* Monthly Calendar View */}
-          <View style={[styles.calendarContainer, { backgroundColor: colors.card }]}>
-            {renderCalendarHeader()}
-            {renderDayNames()}
-            
-            <View style={styles.daysContainer}>
-              {calendarDays.map((day, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.dayCell,
-                    { backgroundColor: day ? 'transparent' : colors.card },
-                    day && isSameDay(day, selectedDate) && styles.selectedDay,
-                    day && isSameDay(day, selectedDate) && { backgroundColor: colors.primary },
-                  ]}
-                  onPress={() => day && setSelectedDate(day)}
-                  disabled={!day}
-                >
-                  {day ? (
-                    <View style={styles.dayCellContent}>
-                      <Text
-                        style={[
-                          styles.dayText,
-                          isSameDay(day, selectedDate) && styles.selectedDayText,
-                          { color: isSameDay(day, selectedDate) ? '#fff' : colors.text },
-                        ]}
-                      >
-                        {format(day, 'd')}
-                      </Text>
-                      {hasEventsOnDate(day) && (
-                        <View 
-                          style={[
-                            styles.eventDot,
-                            { backgroundColor: isSameDay(day, selectedDate) ? '#fff' : colors.primary }
-                          ]} 
-                        />
-                      )}
-                    </View>
-                  ) : (
-                    <Text style={{ color: colors.text }}> </Text>
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* Selected Date Events */}
-          <View style={styles.selectedDateContainer}>
-            <Text style={[styles.selectedDateHeader, { color: colors.text }]}>
-              Events for {format(selectedDate, 'MMMM d, yyyy')}
-            </Text>
-            
-            {selectedDateEvents.length === 0 ? (
-              <View style={[styles.noEventsContainer, { backgroundColor: colors.card }]}>
-                <CalendarIcon size={24} color={colors.text} style={styles.noEventsIcon} />
-                <Text style={[styles.noEventsText, { color: colors.text }]}>No events scheduled for this day</Text>
-              </View>
+      <SafeAreaView style={styles.container}>
+        {/* Header */}
+        <Animated.View 
+          entering={FadeInDown.delay(100).duration(700)}
+          style={styles.headerContainer}
+        >
+          <Text style={[styles.header, { color: colors.text }]}>Calendar</Text>
+          <TouchableOpacity 
+            onPress={() => setIsAddEventModalVisible(true)} 
+            style={styles.addButton}
+          >
+            {Platform.OS === 'ios' ? (
+              <BlurView intensity={isDarkMode ? 40 : 60} tint={isDarkMode ? "dark" : "light"} style={styles.addButtonBlur}>
+                <PlusCircle color={colors.primary} size={20} style={styles.addButtonIcon} />
+                <Text style={[styles.addButtonText, { color: colors.primary }]}>Add Event</Text>
+              </BlurView>
             ) : (
-              selectedDateEvents.map((event) => (
-                <View key={event.id} style={[styles.eventCard, { backgroundColor: colors.card }]}>
-                  <View style={styles.eventHeader}>
-                    <Text style={[styles.eventTitle, { color: colors.text }]}>{event.title}</Text>
-                    <TouchableOpacity 
-                      style={[styles.deleteButton, { backgroundColor: colors.card }]}
-                      onPress={() => handleDeleteEvent(event.id, event.title)}
-                    >
-                      <Trash2 size={18} color={colors.error} />
-                    </TouchableOpacity>
+              <View style={[styles.androidAddButton, { backgroundColor: isDarkMode ? 'rgba(45, 55, 72, 0.7)' : 'rgba(255, 255, 255, 0.7)' }]}>
+                <PlusCircle color={colors.primary} size={20} style={styles.addButtonIcon} />
+                <Text style={[styles.addButtonText, { color: colors.primary }]}>Add Event</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </Animated.View>
+
+        <AddEventModal
+          visible={isAddEventModalVisible}
+          onClose={() => setIsAddEventModalVisible(false)}
+          onEventAdded={handleEventAdded}
+        />
+        
+        {loading ? (
+          <Animated.View 
+            entering={FadeIn.delay(200).duration(700)}
+            style={styles.loadingContainer}
+          >
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={[styles.loadingText, { color: colors.text }]}>Loading calendar...</Text>
+          </Animated.View>
+        ) : (
+          <ScrollView 
+            contentContainerStyle={{ paddingBottom: 60 }}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                colors={[colors.primary]}
+                tintColor={colors.primary}
+                progressBackgroundColor={colors.card}
+              />
+            }>
+            {/* Monthly Calendar View */}
+            <Animated.View 
+              entering={FadeInDown.delay(200).duration(700)}
+              style={styles.calendarContainer}
+            >
+              {Platform.OS === 'ios' ? (
+                <BlurView intensity={isDarkMode ? 40 : 60} tint={isDarkMode ? "dark" : "light"} style={styles.calendarBlur}>
+                  {renderCalendarHeader()}
+                  {renderDayNames()}
+                  
+                  <View style={styles.daysContainer}>
+                    {calendarDays.map((day, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={[
+                          styles.dayCell,
+                          { backgroundColor: day ? 'transparent' : 'transparent' },
+                          day && isSameDay(day, selectedDate) && styles.selectedDay,
+                          day && isSameDay(day, selectedDate) && { backgroundColor: colors.primary },
+                        ]}
+                        onPress={() => day && setSelectedDate(day)}
+                        disabled={!day}
+                      >
+                        {day ? (
+                          <View style={styles.dayCellContent}>
+                            <Text
+                              style={[
+                                styles.dayText,
+                                isSameDay(day, selectedDate) && styles.selectedDayText,
+                                { color: isSameDay(day, selectedDate) ? '#fff' : colors.text },
+                              ]}
+                            >
+                              {format(day, 'd')}
+                            </Text>
+                            {hasEventsOnDate(day) && (
+                              <View 
+                                style={[
+                                  styles.eventDot,
+                                  { backgroundColor: isSameDay(day, selectedDate) ? '#fff' : colors.primary }
+                                ]} 
+                              />
+                            )}
+                          </View>
+                        ) : (
+                          <Text style={{ color: 'transparent' }}> </Text>
+                        )}
+                      </TouchableOpacity>
+                    ))}
                   </View>
+                </BlurView>
+              ) : (
+                <View style={[styles.androidCalendar, { backgroundColor: isDarkMode ? 'rgba(45, 55, 72, 0.7)' : 'rgba(255, 255, 255, 0.7)' }]}>
+                  {renderCalendarHeader()}
+                  {renderDayNames()}
                   
-                  {event.description && (
-                    <Text style={[styles.eventDescription, { color: colors.text }]}>
-                      {event.description}
-                    </Text>
-                  )}
-                  
-                  <View style={styles.eventTimeContainer}>
-                    <Clock size={16} color={colors.primary} style={styles.eventIcon} />
-                    <Text style={[styles.eventTime, { color: colors.text }]}>
-                      {format(new Date(event.start_time), 'h:mm a')}
-                      {event.end_time && ` - ${format(new Date(event.end_time), 'h:mm a')}`}
-                    </Text>
+                  <View style={styles.daysContainer}>
+                    {calendarDays.map((day, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={[
+                          styles.dayCell,
+                          { backgroundColor: day ? 'transparent' : 'transparent' },
+                          day && isSameDay(day, selectedDate) && styles.selectedDay,
+                          day && isSameDay(day, selectedDate) && { backgroundColor: colors.primary },
+                        ]}
+                        onPress={() => day && setSelectedDate(day)}
+                        disabled={!day}
+                      >
+                        {day ? (
+                          <View style={styles.dayCellContent}>
+                            <Text
+                              style={[
+                                styles.dayText,
+                                isSameDay(day, selectedDate) && styles.selectedDayText,
+                                { color: isSameDay(day, selectedDate) ? '#fff' : colors.text },
+                              ]}
+                            >
+                              {format(day, 'd')}
+                            </Text>
+                            {hasEventsOnDate(day) && (
+                              <View 
+                                style={[
+                                  styles.eventDot,
+                                  { backgroundColor: isSameDay(day, selectedDate) ? '#fff' : colors.primary }
+                                ]} 
+                              />
+                            )}
+                          </View>
+                        ) : (
+                          <Text style={{ color: 'transparent' }}> </Text>
+                        )}
+                      </TouchableOpacity>
+                    ))}
                   </View>
-                  
-                  {event.location && (
-                    <View style={styles.eventLocationContainer}>
-                      <MapPin size={16} color={colors.primary} style={styles.eventIcon} />
-                      <Text style={[styles.eventLocation, { color: colors.text }]}>{event.location}</Text>
+                </View>
+              )}
+            </Animated.View>
+
+            {/* Selected Date Events */}
+            <Animated.View 
+              entering={FadeInDown.delay(300).duration(700)}
+              style={styles.selectedDateContainer}
+            >
+              <Text style={[styles.selectedDateHeader, { color: colors.text }]}>
+                Events for {format(selectedDate, 'MMMM d, yyyy')}
+              </Text>
+              
+              {selectedDateEvents.length === 0 ? (
+                <Animated.View 
+                  entering={FadeInDown.delay(400).duration(700)}
+                  style={styles.noEventsContainer}
+                >
+                  {Platform.OS === 'ios' ? (
+                    <BlurView intensity={isDarkMode ? 40 : 60} tint={isDarkMode ? 'dark' : 'light'} style={styles.noEventsBlur}>
+                      <CalendarIcon size={24} color={colors.text} style={styles.noEventsIcon} />
+                      <Text style={[styles.noEventsText, { color: colors.text }]}>No events scheduled for this day</Text>
+                    </BlurView>
+                  ) : (
+                    <View style={[styles.androidNoEvents, { backgroundColor: isDarkMode ? 'rgba(45, 55, 72, 0.7)' : 'rgba(255, 255, 255, 0.7)' }]}>
+                      <CalendarIcon size={24} color={colors.text} style={styles.noEventsIcon} />
+                      <Text style={[styles.noEventsText, { color: colors.text }]}>No events scheduled for this day</Text>
                     </View>
                   )}
-                </View>
-              ))
-            )}
-          </View>
-        </ScrollView>
-      )}
-    </SafeAreaView>
+                </Animated.View>
+              ) : (
+                selectedDateEvents.map((event, index) => (
+                  <Animated.View 
+                    key={event.id} 
+                    entering={FadeInDown.delay(400 + (index * 100)).duration(700)}
+                    style={styles.eventCardContainer}
+                  >
+                    {Platform.OS === 'ios' ? (
+                      <BlurView intensity={isDarkMode ? 40 : 60} tint={isDarkMode ? 'dark' : 'light'} style={styles.eventCardBlur}>
+                        <View style={styles.eventHeader}>
+                          <Text style={[styles.eventTitle, { color: colors.text }]}>{event.title}</Text>
+                          <TouchableOpacity 
+                            style={styles.deleteButton}
+                            onPress={() => handleDeleteEvent(event.id, event.title)}
+                          >
+                            <Trash2 size={18} color={colors.error} />
+                          </TouchableOpacity>
+                        </View>
+                        
+                        {event.description && (
+                          <Text style={[styles.eventDescription, { color: colors.text }]}>
+                            {event.description}
+                          </Text>
+                        )}
+                        
+                        <View style={styles.eventTimeContainer}>
+                          <Clock size={16} color={colors.primary} style={styles.eventIcon} />
+                          <Text style={[styles.eventTime, { color: colors.text }]}>
+                            {format(new Date(event.start_time), 'h:mm a')}
+                            {event.end_time && ` - ${format(new Date(event.end_time), 'h:mm a')}`}
+                          </Text>
+                        </View>
+                        
+                        {event.location && (
+                          <View style={styles.eventLocationContainer}>
+                            <MapPin size={16} color={colors.primary} style={styles.eventIcon} />
+                            <Text style={[styles.eventLocation, { color: colors.text }]}>{event.location}</Text>
+                          </View>
+                        )}
+                      </BlurView>
+                    ) : (
+                      <View style={[styles.androidEventCard, { backgroundColor: isDarkMode ? 'rgba(45, 55, 72, 0.7)' : 'rgba(255, 255, 255, 0.7)' }]}>
+                        <View style={styles.eventHeader}>
+                          <Text style={[styles.eventTitle, { color: colors.text }]}>{event.title}</Text>
+                          <TouchableOpacity 
+                            style={styles.deleteButton}
+                            onPress={() => handleDeleteEvent(event.id, event.title)}
+                          >
+                            <Trash2 size={18} color={colors.error} />
+                          </TouchableOpacity>
+                        </View>
+                        
+                        {event.description && (
+                          <Text style={[styles.eventDescription, { color: colors.text }]}>
+                            {event.description}
+                          </Text>
+                        )}
+                        
+                        <View style={styles.eventTimeContainer}>
+                          <Clock size={16} color={colors.primary} style={styles.eventIcon} />
+                          <Text style={[styles.eventTime, { color: colors.text }]}>
+                            {format(new Date(event.start_time), 'h:mm a')}
+                            {event.end_time && ` - ${format(new Date(event.end_time), 'h:mm a')}`}
+                          </Text>
+                        </View>
+                        
+                        {event.location && (
+                          <View style={styles.eventLocationContainer}>
+                            <MapPin size={16} color={colors.primary} style={styles.eventIcon} />
+                            <Text style={[styles.eventLocation, { color: colors.text }]}>{event.location}</Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
+                  </Animated.View>
+                ))
+              )}
+            </Animated.View>
+          </ScrollView>
+        )}
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  backgroundGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  },
   container: {
     flex: 1,
     padding: 16,
@@ -362,8 +507,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   header: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 28,
   },
 
   loadingContainer: {
@@ -374,51 +519,81 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 10,
     fontSize: 16,
+    fontFamily: 'Inter-Medium',
   },
 
   addButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  addButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  calendarContainer: {
-    borderRadius: 12,
+    height: 44,
+    borderRadius: 22,
     overflow: 'hidden',
-    marginBottom: 16,
-    padding: 12,
+  },
+  addButtonBlur: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    height: '100%',
+  },
+  androidAddButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 22,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 4,
+  },
+  addButtonIcon: {
+    marginRight: 8,
+  },
+  addButtonText: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 14,
+  },
+  calendarContainer: {
+    borderRadius: 16,
+    overflow: Platform.OS === 'ios' ? 'hidden' : 'visible',
+    marginBottom: 16,
+  },
+  calendarBlur: {
+    padding: 16,
+    borderRadius: 16,
+  },
+  androidCalendar: {
+    padding: 16,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4,
   },
   calendarHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   calendarNavButton: {
-    padding: 4,
+    padding: 8,
+    borderRadius: 20,
   },
   calendarMonthTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontFamily: 'Inter-SemiBold',
   },
   dayNamesContainer: {
     flexDirection: 'row',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   dayName: {
     flex: 1,
     textAlign: 'center',
-    fontWeight: '500',
     fontSize: 14,
+    fontFamily: 'Inter-Medium',
   },
   daysContainer: {
     flexDirection: 'row',
@@ -433,92 +608,132 @@ const styles = StyleSheet.create({
   },
   dayCellContent: {
     alignItems: 'center',
+    justifyContent: 'center',
+    width: '80%',
+    height: '80%',
+    borderRadius: 12,
   },
   dayText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontFamily: 'Inter-Medium',
   },
   selectedDay: {
     borderRadius: 20,
   },
   selectedDayText: {
-    fontWeight: 'bold',
+    fontFamily: 'Inter-Bold',
   },
   eventDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    marginTop: 2,
+    marginTop: 3,
   },
   selectedDateContainer: {
-    marginTop: 8,
+    marginTop: 16,
+    marginBottom: 8,
   },
   selectedDateHeader: {
     fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 12,
+    fontFamily: 'Inter-SemiBold',
+    marginBottom: 16,
+    paddingHorizontal: 4,
   },
   noEventsContainer: {
-    padding: 20,
-    borderRadius: 12,
+    borderRadius: 16,
+    overflow: Platform.OS === 'ios' ? 'hidden' : 'visible',
+    marginBottom: 12,
+  },
+  noEventsBlur: {
+    padding: 24,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  androidNoEvents: {
+    padding: 24,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4,
+  },
   noEventsIcon: {
-    marginBottom: 8,
+    marginBottom: 12,
     opacity: 0.7,
   },
   noEventsText: {
     fontSize: 16,
+    fontFamily: 'Inter-Medium',
     textAlign: 'center',
-    opacity: 0.7,
+    opacity: 0.8,
   },
-  eventCard: {
-    borderRadius: 12,
-    padding: 16,
+  eventCardContainer: {
+    borderRadius: 16,
     marginBottom: 12,
+    overflow: Platform.OS === 'ios' ? 'hidden' : 'visible',
+  },
+  eventCardBlur: {
+    padding: 16,
+    borderRadius: 16,
+  },
+  androidEventCard: {
+    padding: 16,
+    borderRadius: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowRadius: 4,
+    elevation: 4,
   },
   eventHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   eventTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontFamily: 'Inter-SemiBold',
     flex: 1,
   },
   deleteButton: {
     padding: 8,
-    borderRadius: 4,
+    borderRadius: 8,
   },
   eventDescription: {
     fontSize: 14,
-    marginBottom: 12,
+    fontFamily: 'Inter-Regular',
+    marginBottom: 16,
     lineHeight: 20,
   },
   eventTimeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
+    backgroundColor: 'rgba(125, 211, 252, 0.15)',
+    padding: 8,
+    borderRadius: 8,
   },
   eventLocationContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: 'rgba(167, 139, 250, 0.15)',
+    padding: 8,
+    borderRadius: 8,
   },
   eventIcon: {
-    marginRight: 6,
+    marginRight: 8,
   },
   eventTime: {
     fontSize: 14,
+    fontFamily: 'Inter-Medium',
   },
   eventLocation: {
     fontSize: 14,
+    fontFamily: 'Inter-Medium',
   },
 });

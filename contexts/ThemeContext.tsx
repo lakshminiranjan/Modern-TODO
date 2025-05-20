@@ -1,6 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useColorScheme } from 'react-native';
 
 // Define supported languages
 export const LANGUAGES = {
@@ -12,58 +11,49 @@ export const LANGUAGES = {
   ja: 'Japanese',
 };
 
-// Define colors for light and dark themes
+// Define colors based on login page
 export const COLORS = {
-  light: {
-    primary: '#3182CE',
-    secondary: '#805AD5',
-    accent: '#38B2AC',
-    background: '#F7FAFC',
-    card: '#FFFFFF',
-    text: '#1A202C',
-    textSecondary: '#718096',
-    border: '#E2E8F0',
-    error: '#E53E3E',
-    success: '#38A169',
-    warning: '#DD6B20',
-  },
-  dark: {
-    primary: '#63B3ED',
-    secondary: '#B794F4',
-    accent: '#4FD1C5',
-    background: '#1A202C',
-    card: '#2D3748',
-    text: '#F7FAFC',
-    textSecondary: '#A0AEC0',
-    border: '#4A5568',
-    error: '#FC8181',
-    success: '#68D391',
-    warning: '#F6AD55',
-  },
+  primary: '#4F46E5', // Indigo from login page
+  primaryDark: '#3730A3', // Darker indigo
+  primaryLight: '#818CF8', // Lighter indigo
+  secondary: '#EC4899', // Pink
+  secondaryLight: '#F472B6', // Lighter pink
+  accent: '#38B2AC',
+  background: '#F1F5F9', // Slate 100
+  card: '#FFFFFF',
+  text: '#1E293B', // Slate 800
+  textSecondary: '#64748B', // Slate 500
+  textLight: '#F8FAFC', // Slate 50
+  border: '#CBD5E1', // Slate 300
+  error: '#EF4444', // Red 500
+  errorLight: '#FEE2E2', // Red 100
+  success: '#38A169',
+  warning: '#DD6B20',
+  google: '#4285F4',
+  shadow: '#94A3B8', // Slate 400
 };
 
 type ThemeContextType = {
-  isDarkMode: boolean;
-  toggleTheme: () => void;
-  setDarkMode: (isDark: boolean) => void;
-  colors: typeof COLORS.light;
+  isDarkMode: boolean; // Kept for backward compatibility
+  toggleTheme: () => void; // Kept for backward compatibility
+  setDarkMode: (isDark: boolean) => void; // Kept for backward compatibility
+  colors: typeof COLORS;
   notificationsEnabled: boolean;
   toggleNotifications: () => void;
   language: keyof typeof LANGUAGES;
   setLanguage: (lang: keyof typeof LANGUAGES) => void;
   getLanguageName: (code: keyof typeof LANGUAGES) => string;
-  toggleDarkMode: () => void;
+  toggleDarkMode: () => void; // Kept for backward compatibility
 };
 
 const ThemeContext = createContext<ThemeContextType | null>(null);
 
-const THEME_STORAGE_KEY = 'user_theme_preference';
 const LANGUAGE_STORAGE_KEY = 'user_language_preference';
 const NOTIFICATIONS_STORAGE_KEY = 'user_notifications_preference';
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const systemColorScheme = useColorScheme();
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(systemColorScheme === 'dark');
+  // Always set isDarkMode to false since we're removing dark mode
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(true);
   const [language, setLanguageState] = useState<keyof typeof LANGUAGES>('en');
 
@@ -71,14 +61,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const loadPreferences = async () => {
       try {
-        // Load theme preference
-        const savedTheme = await AsyncStorage.getItem(THEME_STORAGE_KEY);
-        if (savedTheme !== null) {
-          setIsDarkMode(savedTheme === 'dark');
-        } else {
-          setIsDarkMode(systemColorScheme === 'dark');
-        }
-        
         // Load language preference
         const savedLanguage = await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
         if (savedLanguage !== null && savedLanguage in LANGUAGES) {
@@ -92,26 +74,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (error) {
         console.error('Error loading preferences:', error);
-        // Fallback to defaults
-        setIsDarkMode(systemColorScheme === 'dark');
       }
     };
 
     loadPreferences();
-  }, [systemColorScheme]);
-
-  // Save theme preference whenever it changes
-  useEffect(() => {
-    const saveThemePreference = async () => {
-      try {
-        await AsyncStorage.setItem(THEME_STORAGE_KEY, isDarkMode ? 'dark' : 'light');
-      } catch (error) {
-        console.error('Error saving theme preference:', error);
-      }
-    };
-
-    saveThemePreference();
-  }, [isDarkMode]);
+  }, []);
 
   // Save language preference whenever it changes
   useEffect(() => {
@@ -139,16 +106,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     saveNotificationsPreference();
   }, [notificationsEnabled]);
 
+  // These functions are kept for backward compatibility but don't change the theme
   const toggleTheme = () => {
-    setIsDarkMode(prev => !prev);
+    // No-op function - dark mode is disabled
   };
 
   const toggleDarkMode = () => {
-    setIsDarkMode(prev => !prev);
+    // No-op function - dark mode is disabled
   };
 
   const setDarkMode = (isDark: boolean) => {
-    setIsDarkMode(isDark);
+    // No-op function - dark mode is disabled
   };
 
   const toggleNotifications = () => {
@@ -163,15 +131,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     return LANGUAGES[code] || LANGUAGES.en;
   };
 
-  // Get the appropriate color scheme based on dark mode setting
-  const colors = isDarkMode ? COLORS.dark : COLORS.light;
-
   return (
     <ThemeContext.Provider value={{ 
-      isDarkMode, 
+      isDarkMode: false, // Always false since dark mode is removed
       toggleTheme, 
       setDarkMode,
-      colors,
+      colors: COLORS,
       notificationsEnabled,
       toggleNotifications,
       language,

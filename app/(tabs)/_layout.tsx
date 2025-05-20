@@ -10,20 +10,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function TabLayout() {
   const { session, loading } = useAuth();
-  const { colors, isDarkMode } = useTheme();
+  const { colors } = useTheme();
+  // Always declare state variables at the top level
+  const [shouldRedirect, setShouldRedirect] = useState(false);
 
-  // Show loading screen while checking auth state
-  if (loading) {
-    return null;
-  }
-
-  // If no session, redirect to auth
-  if (!session) {
-    // Use a state variable to delay the redirect until after layout is mounted
-    const [shouldRedirect, setShouldRedirect] = useState(false);
-    
-    // Use useEffect to set the redirect flag after checking if Root Layout is mounted
-    useEffect(() => {
+  // Use useEffect to handle the redirect logic
+  useEffect(() => {
+    // Only run the redirect logic if not loading and no session
+    if (!loading && !session) {
       const checkAndSetRedirect = async () => {
         try {
           // Check if Root Layout is mounted
@@ -46,11 +40,17 @@ export default function TabLayout() {
       
       // Start the check process
       checkAndSetRedirect();
-      
-      // No cleanup needed for this effect
-    }, []);
-    
-    // Only redirect after the delay and when Root Layout is mounted
+    }
+    // No cleanup needed for this effect
+  }, [loading, session]);
+
+  // Show loading screen while checking auth state
+  if (loading) {
+    return null;
+  }
+
+  // If no session and should redirect, redirect to auth
+  if (!session) {
     if (shouldRedirect) {
       return <Redirect href="/(auth)/signup" />;
     }
@@ -67,8 +67,10 @@ export default function TabLayout() {
         tabBarStyle: [
           styles.tabBar, 
           { 
-            backgroundColor: isDarkMode ? 'rgba(45, 55, 72, 0.8)' : 'rgba(255, 255, 255, 0.8)',
-            borderTopColor: colors.border
+            backgroundColor: 'rgba(255, 255, 255, 0.8)',
+            borderTopColor: colors.border,
+            justifyContent: 'space-between',
+            paddingHorizontal: 8
           }
         ],
         tabBarLabelStyle: styles.tabBarLabel,
@@ -78,7 +80,7 @@ export default function TabLayout() {
           Platform.OS === 'ios' ? (
             <BlurView 
               intensity={80} 
-              tint={isDarkMode ? "dark" : "light"} 
+              tint="light" 
               style={styles.tabBarBlurView}
             />
           ) : null,
@@ -154,8 +156,12 @@ const styles = StyleSheet.create({
   tabBarLabel: {
     fontFamily: 'Inter-Medium',
     fontSize: 12,
+    marginTop: 2,
   },
   tabBarItem: {
+    flex: 1,
     paddingVertical: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

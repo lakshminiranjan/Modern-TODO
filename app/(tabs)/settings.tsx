@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, Modal, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { User, ChevronRight, Bell, Palette, Lock, CircleHelp as HelpCircle, Globe, Moon, LogOut, X, Check } from 'lucide-react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme, LANGUAGES } from '../../contexts/ThemeContext';
@@ -73,8 +74,17 @@ export default function SettingsScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: COLORS.background }]}>
-      <View style={styles.header}>
+    <View style={{ flex: 1 }}>
+      {/* Background gradient */}
+      <LinearGradient
+        colors={[COLORS.primaryDark, COLORS.primary, COLORS.secondary]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.backgroundGradient}
+      />
+      
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: COLORS.text }]}>Settings</Text>
       </View>
 
@@ -450,13 +460,20 @@ export default function SettingsScreen() {
         </View>
       </Modal>
     </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  backgroundGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  },
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
     paddingBottom: 80, // Add extra padding at the bottom to account for the tab bar
   },
   header: {

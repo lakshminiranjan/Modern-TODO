@@ -13,7 +13,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 SplashScreen.preventAutoHideAsync();
 
 // Create a global flag to track when the Root Layout is mounted
-global.rootLayoutMounted = false;
+// Set it to true by default to prevent navigation issues
+global.rootLayoutMounted = true;
 
 function RootLayoutContent() {
   useFrameworkReady();
@@ -36,33 +37,41 @@ function RootLayoutContent() {
   
   // Set the global flag when the layout is mounted
   useEffect(() => {
-    if (fontsLoaded || fontError) {
-      // Set a flag in AsyncStorage to indicate the layout is mounted
-      const setLayoutMounted = async () => {
-        try {
-          await AsyncStorage.setItem('root_layout_mounted', 'true');
-          global.rootLayoutMounted = true;
-          setIsLayoutMounted(true);
-          console.log('Root Layout mounted successfully');
-        } catch (error) {
-          console.error('Failed to set layout mounted flag:', error);
-        }
-      };
-      
-      setLayoutMounted();
-    }
+    // Set a flag in AsyncStorage to indicate the layout is mounted
+    // This happens immediately to ensure navigation works properly
+    const setLayoutMounted = async () => {
+      try {
+        // Set the global flag first (fastest access)
+        global.rootLayoutMounted = true;
+        console.log('Global rootLayoutMounted flag set to true');
+        
+        // Then persist to AsyncStorage (more reliable across reloads)
+        await AsyncStorage.setItem('root_layout_mounted', 'true');
+        setIsLayoutMounted(true);
+        console.log('Root Layout mounted successfully and AsyncStorage updated');
+      } catch (error) {
+        console.error('Failed to set layout mounted flag:', error);
+        // Even if AsyncStorage fails, keep the global flag true
+        global.rootLayoutMounted = true;
+      }
+    };
+    
+    // Call immediately, don't wait for fonts
+    setLayoutMounted();
+    
+    // Also set the global flag directly to ensure it's set
+    global.rootLayoutMounted = true;
     
     return () => {
       // Clean up when unmounted
       global.rootLayoutMounted = false;
+      // We don't clear AsyncStorage here as it might cause issues
+      // during hot reloads or quick navigation
     };
-  }, [fontsLoaded, fontError]);
+  }, []);
 
-  // Return null to keep splash screen visible while fonts load
-  if (!fontsLoaded && !fontError) {
-    return null;
-  }
-
+  // Always render the Slot component to ensure navigation works
+  // but keep the splash screen visible until fonts are loaded
   return (
     <>
       <Slot />

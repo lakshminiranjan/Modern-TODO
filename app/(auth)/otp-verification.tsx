@@ -22,6 +22,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { safeNavigate } from '../../utils/navigation';
 
 const { width, height } = Dimensions.get('window');
 
@@ -61,6 +62,7 @@ export default function OTPVerificationScreen() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
+  const [showOtpSentMessage, setShowOtpSentMessage] = useState(true); // Show OTP sent message initially
   
   // References for OTP inputs
   const inputRefs = useRef<Array<TextInput | null>>([]);
@@ -140,10 +142,26 @@ export default function OTPVerificationScreen() {
     ]).start();
   }, []);
   
+  // Auto-hide OTP sent message after 5 seconds
+  useEffect(() => {
+    if (showOtpSentMessage) {
+      const timer = setTimeout(() => {
+        setShowOtpSentMessage(false);
+      }, 5000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [showOtpSentMessage]);
+
   // Handle OTP input change
   const handleOtpChange = (text: string, index: number) => {
     // Only allow numbers
     if (!/^\d*$/.test(text)) return;
+    
+    // Hide the OTP sent message when user starts typing
+    if (showOtpSentMessage) {
+      setShowOtpSentMessage(false);
+    }
     
     const newOtp = [...otp];
     newOtp[index] = text;
@@ -191,6 +209,9 @@ export default function OTPVerificationScreen() {
         return;
       }
       
+      // Store the entered OTP for later use in password reset
+      await AsyncStorage.setItem(OTP_STORAGE_KEY, otpValue);
+      
       // Get stored OTP
       const storedOtp = await AsyncStorage.getItem(OTP_STORAGE_KEY);
       const storedEmail = await AsyncStorage.getItem(OTP_EMAIL_KEY);
@@ -216,16 +237,11 @@ export default function OTPVerificationScreen() {
         }
       }
       
-      // First verify OTP locally
-      if (!storedOtp || storedOtp !== otpValue) {
-        setError('Invalid OTP. Please check and try again.');
-        setLoading(false);
-        return;
-      }
+      // Skip local OTP verification since Supabase generates its own OTP
+      // We'll use the OTP from the email (Supabase's OTP) instead of our locally generated one
+      console.log('Skipping local OTP verification, will use Supabase verification only');
       
-      console.log('Local OTP verification successful');
-      
-      // OTP verified locally, now establish a session with Supabase
+      // Now establish a session with Supabase using the OTP from the email
       try {
         // Check if we need to refresh the token or can proceed directly to verification
         const lastTokenRefreshStr = await AsyncStorage.getItem('last_token_refresh_time');
@@ -241,15 +257,8 @@ export default function OTPVerificationScreen() {
           const { error: resetError } = await supabase.auth.resetPasswordForEmail(
             email,
             {
-              // IMPORTANT: Set redirectTo to null explicitly to force OTP mode
-              redirectTo: undefined,
-              // Include the OTP in the data parameter directly
-              data: {
-                otp: storedOtp,
-                type: "otp",
-                mode: "otp", // Explicitly request OTP mode
-                use_otp: true // Additional flag to ensure OTP is used
-              }
+              // IMPORTANT: Set redirectTo to undefined explicitly to force OTP mode
+              redirectTo: undefined
             }
           );
           
@@ -307,14 +316,20 @@ export default function OTPVerificationScreen() {
           }
         });
         
-        // Use verifyOtp with magiclink type since we're using signInWithOtp
+        // Use verifyOtp with recovery type for password reset
+        console.log('Verifying OTP with params:', {
+          email,
+          token: cleanOtpValue,
+          type: 'recovery'
+        });
+        
         const result = await tempClient.auth.verifyOtp({
           email,
           token: cleanOtpValue,
-          type: 'magiclink',
-          // Set redirectTo to null explicitly to force OTP mode
+          type: 'recovery',
+          // Don't include options to avoid any redirects
           options: {
-            redirectTo: null
+            redirectTo: undefined
           }
         });
         
@@ -369,33 +384,17 @@ export default function OTPVerificationScreen() {
           [{ text: 'Continue' }]
         );
         
-        // Navigate to reset password screen with email
-        // Check if Root Layout is mounted before navigating
-        const checkAndNavigate = async () => {
-          try {
-            // Wait for the Root Layout to be mounted
-            const isLayoutMounted = await AsyncStorage.getItem('root_layout_mounted');
-            
-            if (isLayoutMounted === 'true' || global.rootLayoutMounted) {
-              // Layout is mounted, safe to navigate
-              router.replace({
-                pathname: '/set-new-password',
-                params: { email }
-              });
-            } else {
-              // Layout not mounted yet, wait and check again
-              console.log('Waiting for Root Layout to mount before navigating...');
-              setTimeout(checkAndNavigate, 100);
-            }
-          } catch (error) {
-            console.error('Error checking layout mounted status:', error);
-            // Wait a bit longer and try again
-            setTimeout(checkAndNavigate, 500);
-          }
-        };
+        // Extend the OTP expiry time to give enough time for password reset
+        // Set it to 5 minutes from now
+        const extendedExpiry = Date.now() + (5 * 60 * 1000);
+        await AsyncStorage.setItem(OTP_EXPIRY_KEY, extendedExpiry.toString());
+        console.log('Extended OTP expiry time for password reset');
         
-        // Start the check and navigate process after a short delay
-        setTimeout(checkAndNavigate, 1000);
+        // Navigate to reset password screen with email using the safe navigation utility
+        // This will handle checking if the Root Layout is mounted
+        setTimeout(() => {
+          safeNavigate('/set-new-password', { email }, 'replace');
+        }, 500);
       } catch (verificationError) {
         console.error('Error during OTP verification:', verificationError);
         
@@ -445,12 +444,6 @@ export default function OTPVerificationScreen() {
       
       // Generate a new OTP
       const newOtp = generateOTP();
-            await supabase.auth.resetPasswordForEmail(email, {
-        data: {
-          otp: newOtp,
-          type: "otp"
-        }
-      });
       // Store OTP, email, and expiry time in AsyncStorage for verification
       await AsyncStorage.setItem(OTP_STORAGE_KEY, newOtp);
       await AsyncStorage.setItem(OTP_EMAIL_KEY, email);
@@ -484,11 +477,7 @@ export default function OTPVerificationScreen() {
       // Send the new OTP via Supabase
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         // Do NOT include redirectTo parameter to ensure OTP is sent instead of a reset link
-        // Include the OTP in the data parameter to ensure it's sent in the email
-        data: {
-          otp: newOtp,
-          type: "otp"
-        }
+        redirectTo: undefined
       });
       
       if (error) {
@@ -517,12 +506,8 @@ export default function OTPVerificationScreen() {
       // Reset OTP input fields
       setOtp(['', '', '', '', '', '']);
       
-      // Show success message
-      Alert.alert(
-        'New Code Sent',
-        `We've sent a new verification code to ${email}. Please check your email.`,
-        [{ text: 'OK' }]
-      );
+      // Show success message in the UI instead of an alert
+      setShowOtpSentMessage(true);
       
       // Reset timer
       const newExpiry = Date.now() + OTP_EXPIRY_TIME;
@@ -643,6 +628,21 @@ export default function OTPVerificationScreen() {
                       </Text>
                     )}
                     
+                    {/* OTP Sent Success Message */}
+                    {showOtpSentMessage && (
+                      <Animated.View 
+                        style={styles.successMessageContainer}
+                        entering={FadeInDown.duration(300)}
+                      >
+                        <View style={styles.successMessageContent}>
+                          <CheckCircle size={20} color={COLORS.success} style={styles.successMessageIcon} />
+                          <Text style={styles.successMessageText}>
+                            Verification code sent to {email}. Please check your email.
+                          </Text>
+                        </View>
+                      </Animated.View>
+                    )}
+
                     {/* Error message */}
                     {error && (
                       <Animated.View 
@@ -897,5 +897,27 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     textAlign: 'center',
     lineHeight: 24,
+  },
+  
+  // Success message styles
+  successMessageContainer: {
+    marginBottom: 24,
+  },
+  successMessageContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.successLight,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  successMessageIcon: {
+    marginRight: 8,
+  },
+  successMessageText: {
+    fontSize: 14,
+    color: COLORS.success,
+    flex: 1,
   },
 });

@@ -31,6 +31,7 @@ import { BlurView } from 'expo-blur';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { validatePasswordStrength } from '../../lib/security';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { safeNavigate } from '../../utils/navigation';
 
 const { width, height } = Dimensions.get('window');
 
@@ -100,29 +101,8 @@ export default function SetNewPasswordScreen() {
             'Your password reset session is invalid or has expired. Please request a new password reset.',
             [
               { text: 'OK', onPress: () => {
-                // Check if Root Layout is mounted before navigating
-                const checkAndNavigate = async () => {
-                  try {
-                    // Wait for the Root Layout to be mounted
-                    const isLayoutMounted = await AsyncStorage.getItem('root_layout_mounted');
-                    
-                    if (isLayoutMounted === 'true' || global.rootLayoutMounted) {
-                      // Layout is mounted, safe to navigate
-                      router.replace('/login');
-                    } else {
-                      // Layout not mounted yet, wait and check again
-                      console.log('Waiting for Root Layout to mount before navigating...');
-                      setTimeout(checkAndNavigate, 100);
-                    }
-                  } catch (error) {
-                    console.error('Error checking layout mounted status:', error);
-                    // Wait a bit longer and try again
-                    setTimeout(checkAndNavigate, 500);
-                  }
-                };
-                
-                // Start the check and navigate process
-                setTimeout(checkAndNavigate, 100);
+                // Use the safe navigation utility to navigate to login
+                safeNavigate('/login');
               } }
             ]
           );
@@ -133,7 +113,7 @@ export default function SetNewPasswordScreen() {
           'Error',
           'Something went wrong. Please try again.',
           [
-            { text: 'OK', onPress: () => setTimeout(() => router.replace('/login'), 100) }
+            { text: 'OK', onPress: () => safeNavigate('/login') }
           ]
         );
       }
@@ -168,6 +148,8 @@ export default function SetNewPasswordScreen() {
       setLoading(true);
       setError(null);
       
+      console.log('Starting password reset process');
+      
       // Animate button press
       RNAnimated.sequence([
         RNAnimated.timing(scaleAnim, {
@@ -185,6 +167,7 @@ export default function SetNewPasswordScreen() {
       // Validate inputs
       if (!password || !confirmPassword) {
         setError('Please fill in all fields');
+        setLoading(false);
         return;
       }
       
@@ -192,12 +175,14 @@ export default function SetNewPasswordScreen() {
       const passwordValidation = validatePasswordStrength(password);
       if (!passwordValidation.valid) {
         setError(passwordValidation.message || 'Password is not strong enough');
+        setLoading(false);
         return;
       }
       
       // Check if passwords match
       if (password !== confirmPassword) {
         setError('Passwords do not match');
+        setLoading(false);
         return;
       }
       
@@ -205,267 +190,146 @@ export default function SetNewPasswordScreen() {
       const storedEmail = await AsyncStorage.getItem(OTP_EMAIL_KEY);
       if (!storedEmail || storedEmail !== email) {
         setError('Your session is invalid or has expired. Please request a new password reset.');
+        setLoading(false);
         return;
       }
       
+      // Get the stored OTP
+      const storedOtp = await AsyncStorage.getItem(OTP_STORAGE_KEY);
+      if (!storedOtp) {
+        setError('Your verification code has expired. Please request a new password reset.');
+        setLoading(false);
+        return;
+      }
+      
+      console.log('Creating new Supabase client for password reset');
+      
+      // Create a fresh client for this operation to avoid session conflicts
+      const resetClient = createClient(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
+          flowType: 'implicit',
+          debug: true
+        }
+      });
+      
       // Try to get the stored session from the OTP verification step
-      const sessionJson = await AsyncStorage.getItem('supabase_session');
+      console.log('Retrieving stored session from OTP verification');
+      const storedSessionStr = await AsyncStorage.getItem('supabase_session');
       let session = null;
       
-      if (sessionJson) {
+      if (storedSessionStr) {
         try {
-          session = JSON.parse(sessionJson);
-          console.log('Retrieved stored session for password update');
+          session = JSON.parse(storedSessionStr);
+          console.log('Found stored session from OTP verification');
         } catch (parseError) {
           console.error('Error parsing stored session:', parseError);
         }
       }
       
-      // Check if we're using local verification
-      const usingLocalVerification = await AsyncStorage.getItem('using_local_verification');
-      
-      // If we don't have a stored session, we need to re-verify the OTP
-      if (!session && usingLocalVerification !== 'true') {
-        console.log('No stored session found, re-verifying OTP');
-        
-        // Get the stored OTP
-        const storedOtp = await AsyncStorage.getItem(OTP_STORAGE_KEY);
-        if (!storedOtp) {
-          setError('Your verification code has expired. Please request a new password reset.');
-          return;
-        }
-        
-        // Check if we need to wait before making another auth request
-        try {
-          // Get the last auth request timestamp
-          const lastAuthRequestTime = await AsyncStorage.getItem('last_auth_request_time');
-          const currentTime = Date.now();
-          
-          if (lastAuthRequestTime) {
-            const timeSinceLastRequest = currentTime - parseInt(lastAuthRequestTime);
-            
-            // If it's been less than 15 seconds since the last request, wait
-            if (timeSinceLastRequest < 15000) {
-              const waitTime = Math.ceil((15000 - timeSinceLastRequest) / 1000);
-              console.log(`Waiting ${waitTime} seconds before making another auth request`);
-              
-              // Show a message to the user
-              setError(`Please wait ${waitTime} seconds before trying again (rate limit protection)`);
-              
-              // Wait for the required time
-              await new Promise(resolve => setTimeout(resolve, 15000 - timeSinceLastRequest));
-            }
-          }
-          
-          // Update the last auth request time
-          await AsyncStorage.setItem('last_auth_request_time', currentTime.toString());
-          
-          // Now try to verify the OTP directly without requesting a new password reset
-          // This avoids triggering rate limits
-          console.log('Verifying OTP directly without requesting a new password reset');
-        } catch (error) {
-          console.error('Error checking rate limit:', error);
-          // Continue with the process even if rate limit check fails
-        }
-        
-        // Short delay to ensure the token is registered in Supabase
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        // Use the imported supabaseUrl and supabaseAnonKey from the top of the file
-        
-        console.log('Supabase URL:', supabaseUrl);
-        console.log('Supabase Anon Key:', supabaseAnonKey ? 'Key exists' : 'Key missing');
-        
-        // Create a new Supabase client just for this operation to avoid session conflicts
-        const tempClient = createClient(supabaseUrl, supabaseAnonKey, {
-          auth: {
-            persistSession: false,
-            autoRefreshToken: false,
-            detectSessionInUrl: false,
-            flowType: 'implicit',
-            debug: true
-          }
-        });
-        
-        // Re-verify OTP to establish a session
-        const { data: verifyData, error: verifyError } = await tempClient.auth.verifyOtp({
+      // If we don't have a stored session, try to verify the OTP again
+      if (!session) {
+        console.log('No stored session found, attempting to verify OTP again');
+        const { data: verifyData, error: verifyError } = await resetClient.auth.verifyOtp({
           email,
           token: storedOtp,
-          type: 'magiclink', // Changed to magiclink since we're using signInWithOtp
+          type: 'recovery',
           options: {
-            // Don't use redirectTo for mobile apps
-            redirectTo: Platform.OS === 'web' 
-              ? `${typeof window !== 'undefined' ? window.location.origin : ''}/set-new-password?email=${encodeURIComponent(email)}`
-              : null
+            redirectTo: undefined
           }
         });
         
         if (verifyError) {
-          console.error('OTP re-verification error:', verifyError);
+          console.error('OTP verification error:', verifyError);
           
-          // Check if it's a rate limiting error
-          if (verifyError.message && verifyError.message.includes('security purposes') && verifyError.message.includes('seconds')) {
-            const secondsMatch = verifyError.message.match(/(\d+) seconds/);
-            const seconds = secondsMatch ? secondsMatch[1] : '60';
-            setError(`For security purposes, please wait ${seconds} seconds before trying again.`);
-          } else if (verifyError.message && (verifyError.message.includes('expired') || verifyError.message.includes('invalid') || verifyError.message.includes('Token'))) {
-            // If verification fails, mark that we're using local verification
-            console.log('Supabase verification failed, using local verification');
-            await AsyncStorage.setItem('using_local_verification', 'true');
-            
-            // Continue with the password update process
-            // We'll handle this case below
-          } else {
-            setError('Failed to authenticate. Please try again or request a new password reset.');
-            return;
-          }
-        } else if (verifyData && verifyData.session) {
-          // Store the session for future use
-          session = verifyData.session;
-          await AsyncStorage.setItem('supabase_session', JSON.stringify(session));
-        }
-      }
-      
-      // Wait a moment for the session to be fully established
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Check if we're using local verification (update the value in case it changed)
-      const isUsingLocalVerification = await AsyncStorage.getItem('using_local_verification');
-      
-      if (isUsingLocalVerification === 'true') {
-        // If we're using local verification, we need to sign in with the email
-        // and then update the password
-        
-        // First, try to sign in with magic link
-        try {
-          console.log('Using local verification flow for password update');
-          
-          // Request a magic link to sign in
-          const { error: signInError } = await supabase.auth.signInWithOtp({
-            email,
-            options: {
-              shouldCreateUser: false,
-            }
-          });
-          
-          if (signInError) {
-            console.error('Error sending magic link:', signInError);
-            
-            // Check if the error is due to rate limiting
-            if (signInError.message && signInError.message.includes('security purposes') && signInError.message.includes('seconds')) {
-              // Extract the number of seconds from the error message
-              const secondsMatch = signInError.message.match(/(\d+) seconds/);
-              const seconds = secondsMatch ? secondsMatch[1] : '60';
-              
-              setError(`For security purposes, please wait ${seconds} seconds before trying again.`);
-              return;
-            }
-            
-            // If it's not a rate limiting error, we'll show a generic message
-            setError('Unable to update your password at this time. Please try again later or contact support.');
-            return;
-            
-            // If the password reset request succeeds, we'll show a success message
-            setSuccess(true);
-            
-            // Show a message to the user
-            Alert.alert(
-              'Password Reset Code Sent',
-              'We\'ve sent you an email with a verification code to reset your password. Please check your email and enter the code.',
-              [{ text: 'OK' }]
-            );
+          if (verifyError.message && (verifyError.message.includes('expired') || 
+              verifyError.message.includes('invalid') || 
+              verifyError.message.includes('Token'))) {
+            // Token expired or invalid
+            setError('Your password reset link has expired or is invalid. Please request a new one.');
             
             // Redirect to login after 3 seconds
             setTimeout(() => {
-              router.replace('/login');
+              safeNavigate('/login');
             }, 3000);
-            
+            setLoading(false);
             return;
-          }
-          
-          // If the magic link was sent successfully, show a success message
-          setSuccess(true);
-          
-          // Show a message to the user
-          Alert.alert(
-            'Sign-in Link Sent',
-            'We\'ve sent you an email with a link to sign in. After signing in, you can change your password from your profile settings.',
-            [{ text: 'OK' }]
-          );
-          
-          // Redirect to login after 3 seconds
-          setTimeout(() => {
-            router.replace('/login');
-          }, 3000);
-          
-          return;
-        } catch (error) {
-          console.error('Error in local verification flow:', error);
-          setError('Something went wrong. Please try again later.');
-          return;
-        }
-      } else {
-        // Now update the password with the established session
-        // Add retry mechanism in case the session isn't fully established on first try
-        let updateError = null;
-        let retryCount = 0;
-        const maxRetries = 3;
-        
-        while (retryCount < maxRetries) {
-          const { error: attemptError } = await supabase.auth.updateUser({
-            password
-          });
-          
-          if (!attemptError) {
-            // Success, no error
-            updateError = null;
-            break;
-          }
-          
-          updateError = attemptError;
-          console.error(`Password update attempt ${retryCount + 1} failed:`, updateError.message);
-          
-          // If it's a session error, wait and retry
-          if (updateError.message && (updateError.message.includes('session') || updateError.message.includes('JWT'))) {
-            console.log(`Retry ${retryCount + 1}/${maxRetries}: Waiting for session to be established...`);
-            await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
-            retryCount++;
-          } else if (updateError.message && updateError.message.includes('security purposes') && updateError.message.includes('seconds')) {
-            // If it's a rate limiting error, don't retry
-            const secondsMatch = updateError.message.match(/(\d+) seconds/);
+          } else if (verifyError.message && verifyError.message.includes('security purposes') && verifyError.message.includes('seconds')) {
+            // Rate limiting error
+            const secondsMatch = verifyError.message.match(/(\d+) seconds/);
             const seconds = secondsMatch ? secondsMatch[1] : '60';
-            setError(`For security purposes, please wait ${seconds} seconds before trying again.`);
+            
+            setError(`Please wait ${seconds} seconds before trying again.`);
             setLoading(false);
             return;
           } else {
-            // If it's not a session error or rate limiting, don't retry
-            break;
+            // Generic error
+            setError('Failed to verify your identity. Please try again or request a new reset link.');
+            setLoading(false);
+            return;
           }
         }
         
-        if (updateError) {
-          console.error('Password update error after retries:', updateError);
-          
-          // Check if it's a session error
-          if (updateError.message && updateError.message.includes('session')) {
-            // Try the local verification flow as a fallback
-            await AsyncStorage.setItem('using_local_verification', 'true');
-            
-            // Recursively call this function to use the local verification flow
-            await handleResetPassword();
-            return;
-          } else if (updateError.message && updateError.message.includes('security purposes') && updateError.message.includes('seconds')) {
-            const secondsMatch = updateError.message.match(/(\d+) seconds/);
-            const seconds = secondsMatch ? secondsMatch[1] : '60';
-            setError(`For security purposes, please wait ${seconds} seconds before trying again.`);
-          } else {
-            setError('Failed to update password. Please try again.');
-          }
-          return;
+        if (verifyData && verifyData.session) {
+          session = verifyData.session;
         }
       }
       
-      // Success
+      if (!session) {
+        console.error('No session established after OTP verification');
+        setError('Failed to establish a secure session. Please try again.');
+        setLoading(false);
+        return;
+      }
+      
+      console.log('Session established successfully, updating password');
+      
+      // Set the session in the client
+      if (session.access_token && session.refresh_token) {
+        console.log('Setting session in the client');
+        await resetClient.auth.setSession({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token
+        });
+      }
+      
+      // Now update the password with the established session
+      const { error: updateError } = await resetClient.auth.updateUser({
+        password
+      });
+      
+      if (updateError) {
+        console.error('Password update error:', updateError);
+        
+        if (updateError.message && updateError.message.includes('security purposes') && updateError.message.includes('seconds')) {
+          // Rate limiting error
+          const secondsMatch = updateError.message.match(/(\d+) seconds/);
+          const seconds = secondsMatch ? secondsMatch[1] : '60';
+          
+          setError(`Please wait ${seconds} seconds before trying again.`);
+        } else if (updateError.message && (updateError.message.includes('expired') || 
+                  updateError.message.includes('invalid') || 
+                  updateError.message.includes('Token'))) {
+          // Token expired or invalid
+          setError('Your session has expired. Please request a new password reset.');
+          
+          // Redirect to login after 3 seconds
+          setTimeout(() => {
+            safeNavigate('/login');
+          }, 3000);
+        } else {
+          // Generic error
+          setError('Failed to update your password. Please try again or request a new reset link.');
+        }
+        
+        setLoading(false);
+        return;
+      }
+      
+      // Success!
+      console.log('Password updated successfully!');
       setSuccess(true);
       setShowSuccessModal(true);
       
@@ -477,6 +341,11 @@ export default function SetNewPasswordScreen() {
       await AsyncStorage.removeItem('using_local_verification');
       await AsyncStorage.removeItem('last_token_refresh_time');
       await AsyncStorage.removeItem('supabase_rate_limited');
+      await AsyncStorage.removeItem('using_otp_mode');
+      
+      // Sign out to clear any existing sessions
+      await resetClient.auth.signOut();
+      await supabase.auth.signOut();
       
       // Clear form
       setPassword('');
@@ -484,37 +353,43 @@ export default function SetNewPasswordScreen() {
       
       // Redirect to login after showing success modal
       setTimeout(() => {
-        // Check if Root Layout is mounted before navigating
-        const checkAndNavigate = async () => {
-          try {
-            setShowSuccessModal(false);
-            
-            // Wait for the Root Layout to be mounted
-            const isLayoutMounted = await AsyncStorage.getItem('root_layout_mounted');
-            
-            if (isLayoutMounted === 'true' || global.rootLayoutMounted) {
-              // Layout is mounted, safe to navigate
-              router.replace('/login');
-            } else {
-              // Layout not mounted yet, wait and check again
-              console.log('Waiting for Root Layout to mount before navigating...');
-              setTimeout(checkAndNavigate, 100);
-            }
-          } catch (error) {
-            console.error('Error checking layout mounted status:', error);
-            // Wait a bit longer and try again
-            setTimeout(checkAndNavigate, 500);
-          }
-        };
-        
-        // Start the check and navigate process
-        checkAndNavigate();
+        setShowSuccessModal(false);
+        // Use the safe navigation utility to navigate to login
+        safeNavigate('/login');
+        console.log('Navigating to login after password reset success');
       }, 3000);
       
-    } catch (error: any) {
-      console.error('Password reset error:', error);
-      setError('Something went wrong. Please try again.');
-    } finally {
+      setLoading(false);
+    } catch (error) {
+      console.error('Error in password reset process:', error);
+      
+      // Try to extract a meaningful error message if possible
+      let errorMessage = 'Something went wrong. Please try again.';
+      
+      if (error && typeof error === 'object') {
+        if ('message' in error && typeof error.message === 'string') {
+          // If it's a standard error object with a message
+          errorMessage = error.message;
+          
+          // Check for rate limiting in the error message
+          if (errorMessage.includes('security purposes') && errorMessage.includes('seconds')) {
+            const secondsMatch = errorMessage.match(/(\d+) seconds/);
+            const seconds = secondsMatch ? secondsMatch[1] : '60';
+            errorMessage = `Please wait ${seconds} seconds before trying again.`;
+          } else if (errorMessage.includes('expired') || 
+                    errorMessage.includes('invalid') || 
+                    errorMessage.includes('JWT')) {
+            errorMessage = 'Your password reset link has expired or is invalid. Please request a new one.';
+            
+            // Redirect to login after 3 seconds
+            setTimeout(() => {
+              safeNavigate('/login');
+            }, 3000);
+          }
+        }
+      }
+      
+      setError(errorMessage);
       setLoading(false);
     }
   };
@@ -532,8 +407,20 @@ export default function SetNewPasswordScreen() {
             <CheckCircle size={70} color={COLORS.success} style={styles.successModalIcon} />
             <Text style={styles.successModalTitle}>Password has been reset successfully!</Text>
             <Text style={styles.successModalText}>
-              You will be redirected to the login page shortly.
+              Your password has been updated in our database.
             </Text>
+            <Text style={styles.successModalText}>
+              You will be redirected to the login page in a moment.
+            </Text>
+            <TouchableOpacity 
+              style={styles.successModalButton}
+              onPress={() => {
+                setShowSuccessModal(false);
+                safeNavigate('/login');
+              }}
+            >
+              <Text style={styles.successModalButtonText}>Go to Login</Text>
+            </TouchableOpacity>
           </BlurView>
         </View>
       </Modal>
@@ -1017,5 +904,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.textSecondary,
     textAlign: 'center',
+  },
+  successModalButton: {
+    marginTop: 24,
+    backgroundColor: COLORS.success,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    alignItems: 'center',
+    shadowColor: COLORS.success,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  successModalButtonText: {
+    color: COLORS.textLight,
+    fontSize: 16,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
   },
 });

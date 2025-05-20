@@ -25,6 +25,7 @@ export const OTP_TEMPLATE = `<!DOCTYPE html>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Your TaskMaster Verification Code</title>
   <style>
+    /* Base styles */
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       line-height: 1.6;
@@ -33,31 +34,43 @@ export const OTP_TEMPLATE = `<!DOCTYPE html>
       margin: 0;
       padding: 0;
     }
+    
     .container {
       max-width: 600px;
       margin: 0 auto;
       padding: 20px;
     }
+    
     .email-wrapper {
       background-color: #FFFFFF;
       border-radius: 16px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
       overflow: hidden;
       border: 1px solid #E2E8F0;
     }
+    
     .email-header {
       background: linear-gradient(135deg, #4F46E5, #EC4899);
       padding: 30px 20px;
       text-align: center;
     }
+    
+    .logo {
+      margin-bottom: 15px;
+    }
+    
     .logo-text {
       color: white;
       font-size: 28px;
       font-weight: bold;
       margin: 0;
+      letter-spacing: 0.5px;
     }
+    
     .email-body {
       padding: 30px 40px;
     }
+    
     .greeting {
       font-size: 22px;
       font-weight: 600;
@@ -65,11 +78,13 @@ export const OTP_TEMPLATE = `<!DOCTYPE html>
       margin-bottom: 20px;
       color: #1E293B;
     }
+    
     .message {
       font-size: 16px;
       margin-bottom: 30px;
       color: #475569;
     }
+    
     .otp-container {
       background-color: #F1F5F9;
       padding: 20px;
@@ -77,6 +92,13 @@ export const OTP_TEMPLATE = `<!DOCTYPE html>
       text-align: center;
       margin: 20px 0;
     }
+    
+    .otp-label {
+      font-size: 14px;
+      color: #64748B;
+      margin-bottom: 10px;
+    }
+    
     .otp-code {
       font-size: 32px;
       font-weight: bold;
@@ -84,27 +106,58 @@ export const OTP_TEMPLATE = `<!DOCTYPE html>
       color: #4F46E5;
       margin: 0;
     }
+    
+    .instructions {
+      text-align: center;
+      font-weight: bold;
+      font-size: 18px;
+      margin: 30px 0 20px 0;
+      color: #1E293B;
+    }
+    
+    .expiry-note {
+      font-size: 14px;
+      color: #64748B;
+      margin-bottom: 25px;
+      padding: 10px 15px;
+      background-color: #F1F5F9;
+      border-radius: 8px;
+      border-left: 4px solid #4F46E5;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="email-wrapper">
+      <!-- Header with logo -->
       <div class="email-header">
-        <h1 class="logo-text">TaskMaster</h1>
+        <div class="logo">
+          <h1 class="logo-text">TaskMaster</h1>
+        </div>
       </div>
+      
+      <!-- Email content -->
       <div class="email-body">
         <h2 class="greeting">Verification Code</h2>
+        
         <p class="message">
-          Use the verification code below to reset your password.
-          If you didn't request this, you can safely ignore this email.
+          We received a request to reset your password for your TaskMaster account. 
+          Use the verification code below to complete the password reset process.
+          If you didn't make this request, you can safely ignore this email.
         </p>
+        
         <div class="otp-container">
-          <p style="font-size: 14px; color: #64748B; margin-bottom: 10px;">Your verification code is:</p>
-          <p class="otp-code" style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #4F46E5; margin: 0;">{{ .Data.otp }}</p>
+          <p class="otp-label">Your verification code is:</p>
+          <p class="otp-code" style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #4F46E5; margin: 0;">{{ .Token }}</p>
         </div>
-        <p style="text-align: center; font-weight: bold; margin: 20px 0;">
-          This code will expire in 2 minutes.
+        
+        <p class="instructions">
+          Enter this code in the app to reset your password
         </p>
+        
+        <div class="expiry-note">
+          This verification code will expire in 2 minutes for security reasons.
+        </div>
       </div>
     </div>
   </div>

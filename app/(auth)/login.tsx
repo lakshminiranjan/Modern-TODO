@@ -30,6 +30,7 @@ import { BlurView } from 'expo-blur';
 import Animated, { FadeInDown, FadeIn, FadeOut } from 'react-native-reanimated';
 import { checkPasswordResetRateLimit, validateEmailFormat, resetRateLimitCounter } from '../../lib/security';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { safeNavigate } from '../../utils/navigation';
 
 const { width, height } = Dimensions.get('window');
 
@@ -122,10 +123,8 @@ export default function LoginScreen() {
   // Redirect if already logged in
   useEffect(() => {
     if (session) {
-      // Use setTimeout to ensure navigation happens after layout is mounted
-      setTimeout(() => {
-        router.replace('/(tabs)');
-      }, 0);
+      // Use the safe navigation utility to navigate to tabs
+      safeNavigate('/(tabs)');
     }
   }, [session]);
 
@@ -167,10 +166,14 @@ export default function LoginScreen() {
       }
       
       // Generate a new OTP - ensure it's exactly 6 digits
+      // NOTE: This locally generated OTP is NOT used for verification
+      // Supabase will generate its own OTP and send it in the email
+      // The OTP in the email is the one that should be used for verification
       const otp = generateOTP().padStart(6, '0');
-      console.log('Generated OTP:', otp);
+      console.log('Generated OTP (for reference only):', otp);
       
-      // Store OTP, email, and expiry time in AsyncStorage for verification
+      // Store email and expiry time in AsyncStorage for verification
+      // We still store the local OTP for backward compatibility
       await AsyncStorage.setItem(OTP_STORAGE_KEY, otp);
       await AsyncStorage.setItem(OTP_EMAIL_KEY, resetEmail);
       
@@ -245,21 +248,19 @@ export default function LoginScreen() {
             }
           });
           
-          // Use signInWithOtp instead of resetPasswordForEmail for more reliable OTP delivery
-          const { error } = await tempClient.auth.signInWithOtp({
-            email: resetEmail,
-            options: {
-              // Don't create a new user if one doesn't exist
-              shouldCreateUser: false,
-              // Set data with OTP to ensure it's included in the email
-              data: {
-                otp: cleanOtp,
-                type: "otp"
-              },
-              // Set email redirect to null to force OTP mode
-              emailRedirectTo: null
+          // Use resetPasswordForEmail for password reset flow
+          // NOTE: Supabase will generate its own OTP and send it in the email
+          // The locally generated OTP is not used here
+          console.log('Requesting Supabase to send password reset email with OTP');
+          
+          const { error } = await tempClient.auth.resetPasswordForEmail(
+            resetEmail,
+            {
+              // IMPORTANT: Don't include redirectTo to ensure OTP is sent
+              // Supabase will generate its own OTP and include it in the email
+              redirectTo: undefined
             }
-          });
+          );
           
         } finally {
           clearTimeout(timeoutId);
@@ -294,30 +295,11 @@ export default function LoginScreen() {
         }
         
         // Success - don't reveal if email exists or not for security
-        setResetEmailSent(true);
+        // Instead of showing the success message in the modal, immediately close the modal and navigate to OTP verification
+        setForgotPasswordModalVisible(false);
         
-        // Show success message with clear instructions about OTP
-        Alert.alert(
-          'Verification Code Sent',
-          `We've sent a 6-digit verification code to ${resetEmail}. Please check your email and enter the code on the next screen.`,
-          [{ 
-            text: 'OK',
-            onPress: () => {
-              // Close the modal first
-              setForgotPasswordModalVisible(false);
-              
-              // Longer delay before navigating to OTP verification screen
-              // This ensures the layout is fully mounted before navigation
-              setTimeout(() => {
-                // Navigate to OTP verification screen with email parameter
-                router.push({
-                  pathname: '/otp-verification',
-                  params: { email: resetEmail }
-                });
-              }, 500);
-            }
-          }]
-        );
+        // Navigate to OTP verification screen with email parameter using the safe navigation utility
+        safeNavigate('/otp-verification', { email: resetEmail }, 'push');
       } catch (fetchError) {
         // Handle abort error (timeout)
         if (fetchError && typeof fetchError === 'object' && 'name' in fetchError) {

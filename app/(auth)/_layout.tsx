@@ -3,32 +3,35 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 
 export default function AuthLayout() {
+  // Check if rootLayoutMounted flag is set
+  const isRootLayoutMounted = global.rootLayoutMounted === true;
+  
   const { session, loading } = useAuth();
-
-  // Show loading screen while checking auth state
-  if (loading) {
-    return null;
-  }
-
-  // If user is authenticated, redirect to tabs
-  if (session) {
-    // Use a state variable to delay the redirect until after layout is mounted
-    const [shouldRedirect, setShouldRedirect] = useState(false);
-    
-    // Use useEffect to set the redirect flag after a small delay
-    useEffect(() => {
+  // Always declare all hooks at the top level, regardless of conditions
+  const [shouldRedirect, setShouldRedirect] = useState(false);
+  
+  // Use useEffect to handle the redirect logic
+  useEffect(() => {
+    // Only proceed with redirect if session exists and root layout is mounted
+    if (session && isRootLayoutMounted) {
       const timer = setTimeout(() => {
         setShouldRedirect(true);
       }, 0);
       
       return () => clearTimeout(timer);
-    }, []);
-    
-    // Only redirect after the delay
+    }
+  }, [session, isRootLayoutMounted]);
+  
+  // Show loading screen while checking auth state
+  if (loading) {
+    return null;
+  }
+
+  // Handle redirect if user is authenticated and shouldRedirect is true
+  if (session) {
     if (shouldRedirect) {
       return <Redirect href="/(tabs)" />;
     }
-    
     // Return null while waiting to redirect
     return null;
   }

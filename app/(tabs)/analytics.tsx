@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { ChartBar as BarChart2, ChartPie as PieChart, TrendingUp, Clock, Calendar, FileText, ChevronDown } from 'lucide-react-native';
 import { getTaskStats } from '@/lib/tasks';
 import { subscribeToTasks } from '@/lib/tasks';
@@ -39,8 +40,17 @@ export default function AnalyticsScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.header}>
+    <View style={{ flex: 1 }}>
+      {/* Background gradient */}
+      <LinearGradient
+        colors={[colors.primaryDark, colors.primary, colors.secondary]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.backgroundGradient}
+      />
+      
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Analytics</Text>
         <TouchableOpacity style={[styles.periodSelector, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.periodText, { color: colors.textSecondary }]}>Last 30 Days</Text>
@@ -221,13 +231,20 @@ export default function AnalyticsScreen() {
         </View>
       </ScrollView>
     </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  backgroundGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  },
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
   },
   header: {
     flexDirection: 'row',
